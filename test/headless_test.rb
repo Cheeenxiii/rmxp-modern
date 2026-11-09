@@ -29,7 +29,7 @@ Dir.children(game).each do |entry|
   source = File.join(game, entry)
   target = File.join(game_dir, entry)
   if Dir.exist?(source)
-    File.symlink(source, target)
+    FileUtils.cp_r(source, target)
   else
     FileUtils.cp(source, target)
   end
@@ -68,6 +68,9 @@ env = {
   "SDL_AUDIODRIVER" => "dummy",
   "SDL_VIDEODRIVER" => "x11",
 }
+%w[RMXP_JOURNEY RMXP_JOURNEY_MAP RMXP_PROFILE RMXP_WATCHDOG RMXP_WARMUP].each do |key|
+  env[key] = ENV[key] if ENV[key]
+end
 started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 ok = system(env, *command, chdir: game_dir)
 elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started

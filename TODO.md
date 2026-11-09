@@ -30,6 +30,11 @@
 - Uranium : le menu de langue redessine tout à chaque frame (`pbDrawShadowText`,
   `BitmapWrapper#initialize`, cache de bitmaps, `canonicalize` des chemins) ; diagnostic
   fait, pas d'optimisation décidée.
+- Kit v21.1, profil carte : ~7,4 ms de logique + 1,2 ms de rendu par frame (PC,
+  llvmpipe) ; dominé par `TilemapRenderer#update`, `pbBatteryLow?` (appel natif
+  `System.power_state` chaque frame), `Game_Map#data` ; GC 59 collections / 327 ms en
+  4 s. Combat : ~0,07 ms logique + 1,1 ms rendu. Candidats de transformation perf :
+  cache de `System.power_state`, éviter l'accès `map.data` par tuile, anti-redessin.
 - Transformations : traiter les chaînes d'alias sur `Graphics.update` (5 à 16 par jeu)
   comme des alias normaux, et les `eval` des événements comme des méthodes générées.
 - Shim `Array#sample(n)` : exact pour n <= 10 ; au-delà, repli sur un Fisher-Yates partiel

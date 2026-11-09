@@ -34,6 +34,20 @@ avec `Battle::DebugSceneNoVisuals`.
 RMXP_BATTLES=30 RMXP_SEED=7 RMXP_LOG=tmp/battle/log.txt ruby test/battle/run_battles.rb
 ```
 
+Scénario « vraie scène » (carte ou combat) avec mesure par frame :
+
+```bash
+RMXP_JOURNEY=map RMXP_UNCAPPED=1 RMXP_PROFILE=1 RMXP_PROFILE_SCENE=map \
+  RMXP_WARMUP=1 RMXP_SECONDS=4 RMXP_WATCHDOG=60 \
+  ruby test/headless_test.rb tmp/manual/kit-rebuilt tmp/manual/kit-rebuilt/Data 4 1
+RMXP_JOURNEY=battle RMXP_UNCAPPED=1 RMXP_PROFILE=1 RMXP_PROFILE_SCENE=battle \
+  RMXP_WARMUP=1 RMXP_SECONDS=4 RMXP_WATCHDOG=60 \
+  ruby test/headless_test.rb tmp/manual/kit-rebuilt tmp/manual/kit-rebuilt/Data 4 1
+```
+
+Le scénario démarre une partie, marche sur la carte ou déclenche des combats
+automatiques ; `RMXP_PROFILE_SCENE` limite le profil à la scène mesurée.
+
 Deux exécutions avec la même graine doivent produire le même journal.
 
 Données de combat en littéraux Ruby (à relancer après un changement de données) :

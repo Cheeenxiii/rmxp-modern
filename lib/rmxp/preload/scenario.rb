@@ -25,7 +25,13 @@ module Rmxp
         return if @enabled
 
         @enabled = true
+        scene_filter = ENV["RMXP_PROFILE_SCENE"]
         @tp = TracePoint.new(:call, :return) do |tp|
+          if scene_filter == "battle"
+            next unless $rmxp_in_battle
+          elsif scene_filter == "map"
+            next unless defined?($scene) && $scene.is_a?(Scene_Map) && !$rmxp_in_battle
+          end
           path = tp.path.to_s
           next if path.include?("stdlib") || path.include?("<internal:") ||
                   path.include?("headless_preload")
@@ -80,6 +86,157 @@ module Rmxp
   end
 end
 
+
+module Rmxp
+  # Scénario « vraie scène » : démarre une partie, marche sur la carte ou
+  # déclenche des combats automatiques, puis mesure la scène ciblée.
+  module Journey
+    TARGET = (ENV["RMXP_JOURNEY"] || "").to_sym
+    MAP_ID = (ENV["RMXP_JOURNEY_MAP"] || "0").to_i
+
+    @installed = false
+    @started = false
+    @map_frames = 0
+    @battling = false
+
+    class << self
+      def target
+        (TARGET == :map || TARGET == :battle) ? TARGET : nil
+      end
+
+      def install
+        return unless target
+        return if @installed
+        return unless defined?(Scene_Intro) && defined?(Scene_Map) && defined?(Battle) &&
+                      Battle.const_defined?(:Scene)
+
+        Scene_Intro.prepend(IntroHook)
+        Scene_Map.prepend(MapHook)
+        Battle::Scene.prepend(BattleHook)
+        install_input
+        @installed = true
+      end
+
+      def install_input
+        return if Input.singleton_class.method_defined?(:__rmxp_dir4)
+
+        class << Input
+          alias_method :__rmxp_dir4, :dir4
+          def dir4
+            $rmxp_journey_dir || __rmxp_dir4
+          end
+          alias_method :__rmxp_trigger, :trigger?
+          def trigger?(key)
+            return true if (key == Input::USE || key == Input::ACTION) && $rmxp_advance
+            __rmxp_trigger(key)
+          end
+        end
+      end
+
+      def trace(msg)
+        File.open("journey_trace.txt", "a") { |f| f.puts "#{Process.clock_gettime(Process::CLOCK_MONOTONIC).round(3)} #{msg}" } rescue nil
+      end
+
+      def start_game
+        return if @started
+
+        trace("start_game")
+        @started = true
+        Game.start_new
+        pkmn = Pokemon.new(:PIKACHU, 50)
+        $player.party = [pkmn] if $player.respond_to?(:party=)
+        $rmxp_journey_dir = nil
+        Thread.new do
+          sleep 5
+          File.write("stuck_trace.txt", (Thread.main.backtrace || []).join("\n")) rescue nil
+        end
+      rescue Exception
+        @started = false
+        raise
+      end
+
+      def on_map_update
+        return unless @started
+
+        @map_frames += 1
+        trace("map_update #{@map_frames}") if @map_frames <= 3
+        if target == :battle
+          $rmxp_journey_dir = nil
+          return if @battling || @map_frames <= 5
+
+          @battling = true
+          trace("battle_start map_frames=#{@map_frames}")
+          begin
+            $player.party.each { |p| p.heal } if $player.respond_to?(:party)
+            WildBattle.start(:RATTATA, 50)
+          rescue Exception => e
+            $rmxp_journey_error = "#{e.class}: #{e.message}\n#{e.backtrace.first(8).join("\n")}"
+            File.write("journey_error.txt", $rmxp_journey_error) rescue nil
+          ensure
+            trace("battle_end")
+            @battling = false
+            @map_frames = 0
+          end
+        else
+          $rmxp_journey_dir = [2, 6, 8, 4][(@map_frames / 40) % 4]
+        end
+      end
+
+      def tick(now)
+        return unless @started && Rmxp::Scenario.target_scene?
+
+        @advance_tick = (@advance_tick || 0) + 1
+        $rmxp_advance = (@advance_tick % 8 == 0)
+        active = if target == :map
+                   $scene.is_a?(Scene_Map)
+                 else
+                   $rmxp_in_battle == true
+                 end
+        if active
+          trace("active first") unless @target_since
+          @target_since ||= now
+          if !Rmxp::Scenario.measuring? && now - @target_since >= Rmxp::Scenario::WARMUP
+            trace("measure_start")
+            Rmxp::Scenario.start_measurement(now)
+          end
+        elsif !Rmxp::Scenario.measuring?
+          @target_since = nil
+        end
+      end
+    end
+
+    module IntroHook
+      def main
+        if Rmxp::Journey.target
+          Rmxp::Journey.start_game
+        else
+          super
+        end
+      end
+    end
+
+    module MapHook
+      def update
+        Rmxp::Journey.trace("hook_update")
+        Rmxp::Journey.on_map_update
+        super
+      end
+    end
+
+    module BattleHook
+      def pbStartBattle(battle)
+        Rmxp::Journey.trace("battle_hook_in")
+        $rmxp_in_battle = true
+        battle.controlPlayer = true
+        super
+        Rmxp::Journey.trace("battle_hook_out")
+      ensure
+        $rmxp_in_battle = false
+      end
+    end
+  end
+end
+
 module Rmxp
   module Scenario
     SECONDS = (ENV["RMXP_SECONDS"] || "2.0").to_f
@@ -95,6 +252,8 @@ module Rmxp
     @update_end = nil
     @start = nil
     @started_at = nil
+    @scene_names = []
+
 
     class << self
       attr_reader :frames, :times
@@ -105,15 +264,32 @@ module Rmxp
 
       # Called just before the real Graphics.update: the gap since the last
       # update returned is the game logic (input, scene update, ...).
-      def before_update(now)
-        @started_at ||= now
-        return if now - @started_at < WARMUP
+      def target_scene?
+        Rmxp::Journey.target ? true : false
+      end
 
-        unless @running
-          @running = true
-          @start = now
-          @update_end = now
-          Rmxp::Profile.start if ENV["RMXP_PROFILE"]
+      def measuring?
+        @running == true
+      end
+
+      def start_measurement(now)
+        return if @running
+
+        @running = true
+        @start = now
+        @update_end = now
+        Rmxp::Profile.start if ENV["RMXP_PROFILE"]
+      end
+
+      def before_update(now)
+        if Rmxp::Journey.target
+          Rmxp::Journey.install
+          Rmxp::Journey.tick(now)
+          return unless @running
+        else
+          @started_at ||= now
+          return if now - @started_at < WARMUP
+          start_measurement(now) unless @running
         end
         @logic << (now - @update_end) if @update_end
         @update_begin = now
@@ -127,6 +303,7 @@ module Rmxp
         render_time = now - @update_begin
         @render << render_time
         @total << render_time + (@logic.last || 0.0)
+        @scene_names << ($rmxp_in_battle ? "Battle::Scene" : ($scene.class.name rescue nil))
         @update_end = now
         if defined?(GC)
           stat = GC.stat
@@ -154,9 +331,17 @@ module Rmxp
       def finish
         elapsed = @update_end - @start
         fps = elapsed.positive? ? @frames / elapsed : 0.0
-        logic = percentile_stats(@logic)
-        render = percentile_stats(@render)
-        total = percentile_stats(@total)
+        keep = if Rmxp::Journey.target == :battle
+                 @scene_names.each_index.select { |i| @scene_names[i].to_s.include?("Battle::Scene") }
+               elsif Rmxp::Journey.target == :map
+                 @scene_names.each_index.select { |i| @scene_names[i].to_s == "Scene_Map" }
+               else
+                 (0...@logic.length).to_a
+               end
+        logic = percentile_stats(keep.map { |i| @logic[i] })
+        render = percentile_stats(keep.map { |i| @render[i] })
+        total = percentile_stats(keep.map { |i| @total[i] })
+        target_frames = keep.length
 
         scene = if defined?($scene) && $scene
                   $scene.class.name
@@ -175,6 +360,8 @@ module Rmxp
         lines = []
         lines << "graphics_frame_count=#{Graphics.frame_count rescue nil}"
         lines << "frames=#{@frames}"
+        lines << "target_frames=#{target_frames}"
+        lines << "journey_error=#{$rmxp_journey_error}" if defined?($rmxp_journey_error) && $rmxp_journey_error
         lines << "elapsed=#{format('%.6f', elapsed)}"
         lines << "fps=#{format('%.3f', fps)}"
         lines << "logic_p50_ms=#{format('%.4f', logic[:p50] * 1000.0)}"
