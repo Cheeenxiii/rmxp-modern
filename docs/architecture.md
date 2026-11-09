@@ -73,6 +73,13 @@ les méthodes de classe de `Random` et `sample`/`shuffle` dans mkxp-z.
 `preload/scenario.rb` mesure les frames et écrit un dump d'état ; il est chargé par
 `test/headless_test.rb` (mkxp-z sous Xvfb, `SRCDIR` = dossier du jeu).
 
+Le hook de frames est un alias-chain installé en preload : `Graphics.update` est
+sauvegardé puis remplacé. Essentials aliase ensuite `update` dans
+`update_KGC_SpecialTransition` avant de redéfinir `Graphics.update` ; c'est donc notre
+wrapper que son alias capture, et il appelle la méthode C d'origine. Un `prepend` sur
+`Graphics` provoque une récursion infinie (notre `super` retombe sur la redéfinition
+d'Essentials).
+
 ## Ce qui n'est pas ici
 
 - Déchiffrement d'archives : outil externe (`RPGMakerDecrypter`).

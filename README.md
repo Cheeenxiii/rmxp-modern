@@ -8,7 +8,8 @@ en dépôts modernes, puis en jeux recompilés en natif.
 `rmxp build` les reconstruit, `rmxp check` vérifie que scripts et événements compilent.
 Testé sur les kits Essentials v16.2 à v21.1, Uranium, Insurgence et Reborn.
 Le générateur aléatoire déterministe (MT19937 compatible CRuby) est fourni dans
-`lib/rmxp/mt19937.rb` pour l'oracle.
+`lib/rmxp/mt19937.rb` pour l'oracle ; le scénario headless (`test/headless_test.rb`)
+mesure les frames et vérifie le déterminisme du kit v21.1 reconstruit.
 
 ## Installation
 

@@ -48,6 +48,12 @@ Reborn : `mons.dat` est du Marshal mais référence des classes internes
 Ces fichiers sont copiés octet pour octet : le jeu reconstruit est fidèle, mais ils ne
 sont pas lisibles en texte.
 
+## Scénario headless (mkxp-z sous Xvfb)
+
+Kit v21.1 **reconstruit** : démarre sur `Scene_Intro`. Fenêtre de mesure : 81 frames en
+2,001 s, soit 40,5 fps ; médiane 25,0 ms par frame. Deux exécutions avec la même graine
+donnent un dump identique (état + tirages RNG) ; une autre graine change les tirages.
+
 ## Non traité
 
 - Pokémon SDK (formats VD `.dat`, scripts YARB) : hors périmètre de cette étape.

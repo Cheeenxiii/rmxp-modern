@@ -1,7 +1,9 @@
 # Headless scenario probe for mkxp-z.
 #
-# Loaded as a preload script (after deterministic_random.rb). Counts frames,
-# records the time spent per frame, dumps a small game state and exits.
+# Loaded as a preload script. Essentials later aliases Graphics.update into
+# update_KGC_SpecialTransition and redefines Graphics.update; our wrapper is
+# what its alias captures, and it calls the original C method, so there is no
+# recursion.
 #
 # Environment:
 #   RMXP_SECONDS duration of the measurement window (default 2.0)
@@ -82,14 +84,14 @@ module Rmxp
   end
 end
 
-module FrameProbe
+class << Graphics
+  alias_method :__rmxp_original_update, :update
+
   def update
     Rmxp::Scenario.tick
-    super
+    __rmxp_original_update
   end
 end
-
-Graphics.singleton_class.prepend(FrameProbe)
 
 # Watchdog: dump even if the game never reaches the frame hook.
 Thread.new do

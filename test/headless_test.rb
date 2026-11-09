@@ -40,8 +40,8 @@ FileUtils.cp_r(rebuilt_data, File.join(game_dir, "Data"))
 preload = File.join(game_dir, "headless_preload.rb")
 File.write(preload,
            File.read(File.expand_path("../lib/rmxp/mt19937.rb", __dir__)) + "\n" +
-           File.read(File.expand_path("../lib/rmxp/preload/deterministic_random.rb", __dir__)) + "\n" +
-           File.read(File.expand_path("../lib/rmxp/preload/scenario.rb", __dir__)))
+           File.read(File.expand_path("../lib/rmxp/preload/deterministic_random.rb", __dir__)))
+File.write(preload, File.read(preload) + "\n" + File.read(File.expand_path("../lib/rmxp/preload/scenario.rb", __dir__)))
 
 # mkxp.json : conserve les réglages existants, ajoute le preload.
 config_path = File.join(game_dir, "mkxp.json")

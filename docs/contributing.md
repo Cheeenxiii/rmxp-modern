@@ -14,6 +14,21 @@ Le corpus n'étant pas dans le dépôt, les chemins dépendent de votre installa
 
 Pour un seul jeu, `bin/rmxp roundtrip chemin/vers/jeu` donne le même rapport.
 
+Compilation statique :
+
+```bash
+bin/rmxp check chemin/vers/jeu
+```
+
+Scénario headless (mkxp-z compilé dans `vendor/`, Xvfb installé) :
+
+```bash
+ruby test/headless_test.rb JEU DATA_RECONSTRUITE 2.0 1
+```
+
+Le script copie le jeu, injecte le preload RNG et la sonde, lance mkxp-z sous Xvfb avec
+`SRCDIR`, et imprime le dump (scène, fps, médiane par frame, tirages RNG).
+
 ## Ajouter un format
 
 1. Reproduire le problème sur un fichier du corpus et regarder le message exact de
