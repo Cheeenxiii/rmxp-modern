@@ -31,7 +31,7 @@ Dir.glob(File.join(SCRIPTS, "*.rb")).sort.each do |path|
 end
 
 if ENV["RMXP_USE_LITERAL_DATA"]
-  load(File.join(ROOT, "tmp/battle/battle_data.rb"))
+  load(File.join(ROOT, ENV["RMXP_SMALL_DATA"] ? "tmp/battle/battle_data_small.rb" : "tmp/battle/battle_data.rb"))
 else
   GameData.load_all
 end
@@ -104,14 +104,25 @@ $battle_lines = []
 lines = []
 t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 wins = losses = draws = 0
-species_pool = GameData::Species.keys
+SMALL_SPECIES = %i[PIKACHU CHARMANDER BULBASAUR SQUIRTLE EEVEE GENGAR MACHAMP ALAKAZAM SNORLAX LAPRAS].freeze
+SMALL_MOVES = %i[TACKLE SCRATCH GROWL TAIL_WHIP QUICK_ATTACK THUNDERSHOCK THUNDERBOLT EMBER
+                 FLAMETHROWER WATER_GUN SURF VINE_WHIP RAZOR_LEAF CONFUSION PSYCHIC SHADOW_BALL
+                 SLUDGE_BOMB BODY_SLAM EARTHQUAKE ICE_BEAM HYPNOSIS AGILITY SWORDS_DANCE RECOVER
+                 PROTECT TOXIC LIGHT_SCREEN REFLECT DOUBLE_TEAM REST SLEEP_TALK STRUGGLE].freeze
+small = ENV["RMXP_SMALL_DATA"]
+species_pool = small ? SMALL_SPECIES.select { |sp| GameData::Species.exists?(sp) } : GameData::Species.keys
+move_pool = small ? SMALL_MOVES.select { |mv| GameData::Move.exists?(mv) } : nil
 type_pool = GameData::TrainerType.keys
 
 N.times do |i|
   $battle_lines = []
   $turn = 0
-  p1 = Pokemon.new(species_pool[rand(species_pool.length)], 30 + rand(31))
-  p2 = Pokemon.new(species_pool[rand(species_pool.length)], 30 + rand(31))
+  p1 = Pokemon.new(species_pool[rand(species_pool.length)], 30 + rand(31), $player, !small)
+  p2 = Pokemon.new(species_pool[rand(species_pool.length)], 30 + rand(31), $player, !small)
+  if small
+    p1.moves = move_pool.sample(4).map { |m| Pokemon::Move.new(m) }
+    p2.moves = move_pool.sample(4).map { |m| Pokemon::Move.new(m) }
+  end
   t1 = NPCTrainer.new("ASH", type_pool[rand(type_pool.length)])
   t2 = NPCTrainer.new("GARY", type_pool[rand(type_pool.length)])
   t1.party.push(p1)

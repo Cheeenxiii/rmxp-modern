@@ -20,13 +20,13 @@
   depuis l'archive d'origine et créer `Patches/` (le port attend ce dossier). À
   automatiser si les builds Uranium en ont besoin.
 - Audit du dynamisme : Essentials et PSDK sont audités et classés.
-- Jalon 4 (cœur des combats, kit v21.1) : scène sans visuels trouvée, harnais CRuby pur
-  fonctionnel (1000 combats = 80,9 s après chargement), données de combat en littéraux
-  Ruby identiques aux données Marshal (50 combats), oracle CRuby disponible.
-  Blocage : la compilation Spinel du programme complet (8,5 Mo) et d'un sous-ensemble
-  (6,1 Mo, scripts de combat + données) ne termine pas en 10 min, sans refus émis.
-  Prochain essai : réduire la fermeture (quelques espèces/moves, scripts strictement
-  nécessaires) sous ~500 Ko pour obtenir la liste des refus et décider hybride/plan B.
+- Jalon 4 (cœur des combats, kit v21.1) : harnais CRuby pur opérationnel, données
+  littérales identiques aux données Marshal, 1000 combats CRuby = 31,4 s (données
+  réduites). Spinel : 94 refus (noyau), 371 refus (50 %), échec de génération au palier
+  100 % (`@color` typé différemment entre CommandMenu et MenuBase) ; avec
+  `--defer-refusals` le C généré ne compile pas (erreur de types). Aucun binaire Spinel
+  produit. Décision native/hybride/plan B à prendre (recommandation : plan B court
+  terme, Spinel réservé aux sous-systèmes numériques purs).
 - Uranium : le menu de langue redessine tout à chaque frame (`pbDrawShadowText`,
   `BitmapWrapper#initialize`, cache de bitmaps, `canonicalize` des chemins) ; diagnostic
   fait, pas d'optimisation décidée.

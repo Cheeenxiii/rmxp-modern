@@ -8,7 +8,8 @@ require "zlib"
 ROOT = File.expand_path("../..", __dir__)
 KIT = ENV["RMXP_KIT"] || File.join(ROOT, "corpus/kits/v21.1/Pokemon Essentials v21.1 2023-07-30")
 SCRIPTS = File.join(ROOT, "tmp/battle/scripts")
-OUT = ENV["RMXP_DATA"] || File.join(ROOT, "tmp/battle/battle_data.rb")
+SUBSET = ENV["RMXP_SUBSET"] == "1"
+OUT = ENV["RMXP_DATA"] || File.join(ROOT, SUBSET ? "tmp/battle/battle_data_small.rb" : "tmp/battle/battle_data.rb")
 
 unless Dir.exist?(SCRIPTS)
   Dir.mkdir(File.dirname(SCRIPTS)) unless Dir.exist?(File.dirname(SCRIPTS))
@@ -66,6 +67,31 @@ File.open(OUT, "w") do |file|
   file.puts "# Généré par test/battle/gen_battle_data.rb — ne pas éditer."
   ordered.each do |klass|
     objects = klass::DATA.values.uniq
+    if SUBSET
+      case klass.name.split("::").last
+      when "Species"
+        wanted_ids = %i[PIKACHU CHARMANDER BULBASAUR SQUIRTLE EEVEE GENGAR MACHAMP ALAKAZAM SNORLAX LAPRAS]
+        objects = objects.select { |o| wanted_ids.include?(o.id) }
+      when "Move"
+        wanted_ids = %i[TACKLE SCRATCH GROWL TAIL_WHIP QUICK_ATTACK THUNDERSHOCK THUNDERBOLT EMBER
+                        FLAMETHROWER WATER_GUN SURF VINE_WHIP RAZOR_LEAF CONFUSION PSYCHIC SHADOW_BALL
+                        SLUDGE_BOMB BODY_SLAM EARTHQUAKE ICE_BEAM HYPNOSIS AGILITY SWORDS_DANCE RECOVER
+                        PROTECT TOXIC LIGHT_SCREEN REFLECT DOUBLE_TEAM REST SLEEP_TALK STRUGGLE]
+        objects = objects.select { |o| wanted_ids.include?(o.id) }
+      when "Ability"
+        abilities = []
+        GameData::Species::DATA.values.uniq.each do |sp|
+          next unless %i[PIKACHU CHARMANDER BULBASAUR SQUIRTLE EEVEE GENGAR MACHAMP ALAKAZAM SNORLAX LAPRAS].include?(sp.id)
+          abilities.concat(sp.abilities || [])
+          abilities.concat(sp.hidden_abilities || [])
+        end
+        objects = objects.select { |o| abilities.include?(o.id) }
+      when "Item"
+        objects = []
+      when "TrainerType"
+        objects = objects.first(2)
+      end
+    end
     file.puts "# #{klass.name} : #{objects.length} entrées"
     objects.each do |obj|
       hash = object_hash(obj)
