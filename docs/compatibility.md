@@ -56,19 +56,22 @@ donnent un dump identique (état + tirages RNG) ; une autre graine change les ti
 
 ## Audit du Ruby dynamique (`rmxp audit`)
 
-Sources analysées = scripts + fragments d'événements (commandes 355/655 recollées).
+S = supprimable par transformation (cible connue au build), D = vraiment dynamique.
+Sources = scripts + fragments d'événements (commandes 355/655 recollées).
 
-| Jeu | Sources | eval | send calculés | alias (dont `update`) | Marshal | const_get/set | define_method | method_missing | ObjectSpace |
-|---|---|---|---|---|---|---|---|---|---|
-| Kit v21.1 | 1 514 | 9 | 5 | 85 (5) | 39 | 42/3 | 1 | 0 | 5 |
-| Uranium | 11 545 | 21 | 13 | 176 (16) | 99 | 35/2 | 0 | 0 | 13 |
-| Insurgence | 17 793 | 21 | 35 | 106 (16) | 135 | 38/2 | 0 | 0 | 12 |
-| Reborn 19.5 | 17 920 | 85 | 23 | 119 (10) | 77 | 13/0 | 0 | 0 | 4 |
+| Jeu | Sources | eval S/D | send S/D | alias S/D | define_method S/D | Marshal.load/dump | const S/D | ivar S/D | method_missing | ObjectSpace | fragments |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| Kit v21.1 | 1 514 | 11/9 | 0/5 | 85/0 | 0/1 | 14/25 | 3/42 | 0/1 | 0 | 0/5 | 1 112 |
+| Uranium | 11 545 | 0/21 | 6/13 | 176/0 | 0/0 | 57/42 | 0/37 | 0/0 | 0 | 0/13 | 11 284 |
+| Insurgence | 17 793 | 0/21 | 42/35 | 106/0 | 0/0 | 59/76 | 0/40 | 1/1 | 0 | 0/12 | 17 578 |
+| Reborn 19.5 | 17 920 | 1/85 | 17/23 | 119/0 | 0/0 | 39/38 | 0/13 | 55/1 | 0 | 0/4 | 17 726 |
+| PSDK (scripts) | 1 634 | 2/14 | 31/175 | 364/0 | 17/0 | 22/23 | 23/15 | 196/52 | 0 | 0/4 | — |
 
-Les chaînes d'alias sur `Graphics.update` sont nombreuses (5 à 16 par jeu, toutes familles
-confondues) : Essentials et Reborn remplacent `Graphics.update` pour leurs transitions et
-leurs effets ; toute transformation de l'API graphique devra les traiter comme des alias
-ordinaires, pas comme un point d'entrée unique.
+Les fragments d'événements sont du code connu au build (génération de méthodes), donc
+supprimables par transformation. Les `Marshal.load` de données de jeu le sont aussi
+(données générées au build) ; les `Marshal.dump` restent dynamiques (sauvegardes).
+Les alias sur `Graphics.update` (mesurés par l'audit précédent) : 5 dans le kit v21.1,
+16 dans Uranium, 16 dans Insurgence, 10 dans Reborn.
 
 ## Mesures headless (mkxp-z sous Xvfb)
 

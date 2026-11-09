@@ -26,6 +26,16 @@ Audit du Ruby dynamique :
 bin/rmxp audit chemin/vers/jeu
 ```
 
+Harnais de combat headless (CRuby pur, sans mkxp-z) : il extrait les scripts du kit
+v21.1 dans `tmp/battle/scripts`, charge Essentials avec des stubs RGSS et lance N combats
+avec `Battle::DebugSceneNoVisuals`.
+
+```bash
+RMXP_BATTLES=30 RMXP_SEED=7 RMXP_LOG=tmp/battle/log.txt ruby test/battle/run_battles.rb
+```
+
+Deux exécutions avec la même graine doivent produire le même journal.
+
 Scénario headless (mkxp-z compilé dans `vendor/`, Xvfb installé) :
 
 ```bash

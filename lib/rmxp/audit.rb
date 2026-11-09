@@ -1,15 +1,28 @@
 require "prism"
 
 module Rmxp
-  # Inventaire statique du Ruby dynamique : eval, send calculés, alias,
-  # define_method, method_missing, Marshal. Sert au jalon d'audit : il donne
-  # des ordres de grandeur par jeu, pas une preuve d'exhaustivité.
+  # Inventaire statique du Ruby dynamique, classé :
+  # - supprimable : la cible est connue au build (littéral, chaîne/symbole,
+  #   alias, fragment d'événement) et une transformation peut la remplacer par
+  #   un appel direct ou du code généré ;
+  # - dynamique : la cible n'est pas connue au build (nom calculé, eval
+  #   arbitraire, ObjectSpace…).
   class Audit
-    CATEGORIES = %i[
-      eval eval_string eval_block send_literal send_dynamic define_method
-      method_missing alias alias_update marshal const_get const_set
-      instance_variable_get instance_variable_set ObjectSpace
-    ].freeze
+    CATEGORIES = {
+      eval: "eval (chaîne littérale)",
+      eval_block: "eval (bloc)",
+      send: "send / __send__ / public_send",
+      alias: "alias / alias_method",
+      define_method: "define_method",
+      method_missing: "method_missing",
+      marshal_load: "Marshal.load",
+      marshal_dump: "Marshal.dump",
+      const: "const_get / const_set",
+      ivar: "instance_variable_get / set",
+      object_space: "ObjectSpace",
+    }.freeze
+
+    Result = Struct.new(:scripts, :event_fragments, :parse_errors, :stats, keyword_init: true)
 
     def initialize(game_dir, work_dir)
       @game_dir = game_dir
@@ -20,34 +33,54 @@ module Rmxp
       project = File.join(@work_dir, "unpacked")
       Project.new(@game_dir).unpack(@game_dir, project)
 
-      @stats = Hash.new(0)
-      @alias_update_files = []
-      @sources = 0
+      stats = { supprimable: Hash.new(0), dynamique: Hash.new(0) }
+      scripts = 0
+      parse_errors = 0
 
-      audit_dir(File.join(project, "scripts"))
-      tree = File.join(project, "scripts_tree")
-      audit_dir(tree, prefix: "Scripts/") if Dir.exist?(tree)
-      audit_events(File.join(@game_dir, "Data"))
+      [File.join(project, "scripts"), File.join(project, "scripts_tree")].each do |dir|
+        next unless Dir.exist?(dir)
 
-      { stats: @stats, sources: @sources, alias_update_files: @alias_update_files.uniq }
+        Dir.glob(File.join(dir, "**", "*.rb")).sort.each do |path|
+          scripts += 1
+          parse_errors += count(File.binread(path), stats)
+        end
+      end
+
+      event_fragments = audit_events(File.join(@game_dir, "Data"), stats, -> { parse_errors += 1 })
+      Result.new(scripts: scripts, event_fragments: event_fragments,
+                 parse_errors: parse_errors, stats: stats)
+    end
+
+    # Audit d'une arborescence de scripts déjà extraite (PSDK par exemple).
+    def run_scripts_dir(dir)
+      stats = { supprimable: Hash.new(0), dynamique: Hash.new(0) }
+      scripts = 0
+      parse_errors = 0
+      Dir.glob(File.join(dir, "**", "*.rb")).sort.each do |path|
+        scripts += 1
+        parse_errors += count(File.binread(path), stats)
+      end
+      Result.new(scripts: scripts, event_fragments: 0,
+                 parse_errors: parse_errors, stats: stats)
     end
 
     private
 
-    def audit_dir(dir, prefix: "")
-      return unless Dir.exist?(dir)
+    def count(source, stats)
+      result = Prism.parse(source)
+      return 1 unless result.success?
 
-      Dir.glob(File.join(dir, "**", "*.rb")).sort.each do |path|
-        source = File.binread(path)
-        @sources += 1
-        name = prefix + path.sub(dir + "/", "")
-        audit_source(source, name)
-      end
+      counter = Counter.new
+      counter.visit(result.value)
+      counter.supprimable.each { |key, value| stats[:supprimable][key] += value }
+      counter.dynamique.each { |key, value| stats[:dynamique][key] += value }
+      0
     end
 
-    def audit_events(data_dir)
-      return unless Dir.exist?(data_dir)
+    def audit_events(data_dir, stats, on_parse_error)
+      return 0 unless Dir.exist?(data_dir)
 
+      fragments = 0
       files = Dir.children(data_dir).sort.select do |name|
         name.match?(/\A(Map\d+\.rxdata|CommonEvents\.rxdata|Troops\.rxdata)\z/)
       end
@@ -76,11 +109,11 @@ module Rmxp
                 source << current.instance_variable_get(:@parameters)[0].to_s << "\n"
                 index += 1
               end
-              @sources += 1
-              audit_source(source, "event:#{name}")
+              fragments += 1
+              on_parse_error.call if count(source, stats) == 1
             elsif code == 111 && parameters.is_a?(Array) && parameters[0] == 12
-              @sources += 1
-              audit_source(parameters[1].to_s, "event:#{name}")
+              fragments += 1
+              count(parameters[1].to_s, stats)
               index += 1
             else
               index += 1
@@ -88,18 +121,7 @@ module Rmxp
           end
         end
       end
-    end
-
-    def audit_source(source, name)
-      result = Prism.parse(source)
-      return unless result.success?
-
-      counter = Counter.new
-      counter.visit(result.value)
-      counter.stats.each { |key, value| @stats[key] += value }
-      if counter.stats[:alias_update].positive?
-        @alias_update_files << name
-      end
+      fragments
     end
 
     def each_event_list(object, visited, &block)
@@ -134,57 +156,73 @@ module Rmxp
     end
 
     class Counter < Prism::Visitor
-      attr_reader :stats
+      attr_reader :supprimable, :dynamique
 
       def initialize
         super
-        @stats = Hash.new(0)
+        @supprimable = Hash.new(0)
+        @dynamique = Hash.new(0)
+      end
+
+      def literal?(node)
+        node.is_a?(Prism::SymbolNode) || node.is_a?(Prism::StringNode) ||
+          node.is_a?(Prism::IntegerNode)
+      end
+
+      def first_argument(node)
+        node.arguments&.arguments&.first
       end
 
       def visit_call_node(node)
         case node.name
         when :eval
-          @stats[:eval] += 1
+          literal?(first_argument(node)) ? @supprimable[:eval] += 1 : @dynamique[:eval] += 1
         when :instance_eval, :class_eval, :module_eval
-          first = node.arguments&.arguments&.first
-          @stats[first.is_a?(Prism::StringNode) ? :eval_string : :eval_block] += 1
+          first = first_argument(node)
+          if first.nil? || literal?(first)
+            @supprimable[:eval_block] += 1
+          else
+            @dynamique[:eval_block] += 1
+          end
         when :send, :__send__, :public_send
-          first = node.arguments&.arguments&.first
-          literal = first.is_a?(Prism::SymbolNode) || first.is_a?(Prism::StringNode)
-          @stats[literal ? :send_literal : :send_dynamic] += 1
+          if literal?(first_argument(node))
+            @supprimable[:send] += 1
+          else
+            @dynamique[:send] += 1
+          end
         when :define_method
-          @stats[:define_method] += 1
+          literal?(first_argument(node)) ? @supprimable[:define_method] += 1 : @dynamique[:define_method] += 1
         when :alias_method
-          @stats[:alias] += 1
-        when :const_get
-          @stats[:const_get] += 1
-        when :const_set
-          @stats[:const_set] += 1
-        when :instance_variable_get
-          @stats[:instance_variable_get] += 1
-        when :instance_variable_set
-          @stats[:instance_variable_set] += 1
-        when :load, :dump
-          if node.receiver.is_a?(Prism::ConstantReadNode) && node.receiver.name == :Marshal
-            @stats[:marshal] += 1
+          literal?(first_argument(node)) ? @supprimable[:alias] += 1 : @dynamique[:alias] += 1
+        when :const_get, :const_set
+          literal?(first_argument(node)) ? @supprimable[:const] += 1 : @dynamique[:const] += 1
+        when :instance_variable_get, :instance_variable_set
+          literal?(first_argument(node)) ? @supprimable[:ivar] += 1 : @dynamique[:ivar] += 1
+        when :load
+          if constant_named?(node.receiver, :Marshal)
+            @supprimable[:marshal_load] += 1
+          end
+        when :dump
+          if constant_named?(node.receiver, :Marshal)
+            @dynamique[:marshal_dump] += 1
           end
         end
-        if node.receiver.is_a?(Prism::ConstantReadNode) && node.receiver.name == :ObjectSpace
-          @stats[:ObjectSpace] += 1
-        end
+        @dynamique[:object_space] += 1 if constant_named?(node.receiver, :ObjectSpace)
         super
       end
 
       def visit_alias_method_node(node)
-        @stats[:alias] += 1
-        names = [node.new_name, node.old_name].select { |n| n.is_a?(Prism::SymbolNode) }.map(&:unescaped)
-        @stats[:alias_update] += 1 if names.include?("update")
+        @supprimable[:alias] += 1
         super
       end
 
       def visit_def_node(node)
-        @stats[:method_missing] += 1 if node.name == :method_missing
+        @dynamique[:method_missing] += 1 if node.name == :method_missing
         super
+      end
+
+      def constant_named?(node, name)
+        node.is_a?(Prism::ConstantReadNode) && node.name == name
       end
     end
   end

@@ -9,6 +9,77 @@
 #   RMXP_SECONDS duration of the measurement window (default 2.0)
 #   RMXP_DUMP    dump file path (default scenario_dump.txt)
 #   RMXP_SEED    RNG seed, read by deterministic_random.rb
+
+# Profil optionnel (RMXP_PROFILE=1) : self-time et allocations par méthode du
+# jeu, via TracePoint. Actif seulement pendant la fenêtre de mesure.
+module Rmxp
+  module Profile
+    @entries = []
+    @self_time = Hash.new(0.0)
+    @self_alloc = Hash.new(0)
+    @calls = Hash.new(0)
+    @enabled = false
+
+    class << self
+      def start
+        return if @enabled
+
+        @enabled = true
+        @tp = TracePoint.new(:call, :return) do |tp|
+          path = tp.path.to_s
+          next if path.include?("stdlib") || path.include?("<internal:") ||
+                  path.include?("headless_preload")
+
+          key = "#{tp.defined_class}##{tp.method_id}"
+          if tp.event == :call
+            @entries << [key, Process.clock_gettime(Process::CLOCK_MONOTONIC),
+                         GC.stat[:total_allocated_objects], 0.0, 0]
+            @calls[key] += 1
+          else
+            entry = @entries.pop
+            next if entry.nil?
+
+            total_t = Process.clock_gettime(Process::CLOCK_MONOTONIC) - entry[1]
+            total_a = GC.stat[:total_allocated_objects] - entry[2]
+            @self_time[entry[0]] += total_t - entry[3]
+            @self_alloc[entry[0]] += total_a - entry[4]
+            parent = @entries[-1]
+            if parent
+              parent[3] += total_t
+              parent[4] += total_a
+            end
+          end
+        end
+        @tp.enable
+      end
+
+      def stop
+        return unless @enabled
+
+        @tp.disable
+        @enabled = false
+      end
+
+      def dump(path)
+        stop
+        by_time = @self_time.sort_by { |_key, value| -value }.first(20)
+        by_alloc = @self_alloc.sort_by { |_key, value| -value }.first(15)
+        lines = []
+        lines << "top self-time (ms, appels):"
+        by_time.each do |key, seconds|
+          lines << format("  %9.3f ms %7d  %s", seconds * 1000.0, @calls[key], key)
+        end
+        lines << "top allocations (objets):"
+        by_alloc.each do |key, count|
+          lines << format("  %9d objs %7d appels  %s", count, @calls[key], key)
+        end
+        File.write(path, lines.join("\n") + "\n")
+        lines
+      end
+    end
+  end
+end
+
 module Rmxp
   module Scenario
     SECONDS = (ENV["RMXP_SECONDS"] || "2.0").to_f
@@ -42,6 +113,7 @@ module Rmxp
           @running = true
           @start = now
           @update_end = now
+          Rmxp::Profile.start if ENV["RMXP_PROFILE"]
         end
         @logic << (now - @update_end) if @update_end
         @update_begin = now
@@ -122,6 +194,9 @@ module Rmxp
         lines << "player_y=#{y}"
         lines << "rng_seed=#{ENV['RMXP_SEED']}"
         lines << "rng_draws=#{draws.join(',')}"
+        if ENV["RMXP_PROFILE"]
+          File.write(DUMP_PATH + ".profile", Rmxp::Profile.dump(DUMP_PATH + ".profile").join("\n") + "\n")
+        end
         File.write(DUMP_PATH, lines.join("\n") + "\n")
         Kernel.exit!(0)
       end

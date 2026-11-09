@@ -6,7 +6,8 @@ en dépôts modernes, puis en jeux recompilés en natif.
 État actuel : **aller-retour des données Essentials** et **compilation statique**.
 `rmxp unpack` extrait les données et les scripts d'un jeu en texte (YAML + `.rb`),
 `rmxp build` les reconstruit, `rmxp check` vérifie que scripts et événements compilent,
-`rmxp audit` inventorie le Ruby dynamique.
+`rmxp audit` inventorie le Ruby dynamique, et `test/battle/` lance des combats Essentials
+headless en CRuby pur (oracle du jalon 4).
 Testé sur les kits Essentials v16.2 à v21.1, Uranium, Insurgence et Reborn.
 Le générateur aléatoire déterministe (MT19937 compatible CRuby) est fourni dans
 `lib/rmxp/mt19937.rb` pour l'oracle ; le scénario headless (`test/headless_test.rb`)

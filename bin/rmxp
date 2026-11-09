@@ -6,6 +6,18 @@ def slug(path)
   File.expand_path(path).sub(Dir.pwd + "/", "").gsub(/[^A-Za-z0-9_.-]+/, "__")
 end
 
+def print_audit(result)
+  puts "sources: scripts=#{result.scripts} fragments_evenements=#{result.event_fragments} " \
+       "erreurs_parsing=#{result.parse_errors}"
+  puts format("  %-34s %12s %12s", "catégorie", "supprimable", "dynamique")
+  Rmxp::Audit::CATEGORIES.each do |key, label|
+    sup = result.stats[:supprimable][key]
+    dyn = result.stats[:dynamique][key]
+    puts format("  %-34s %12d %12d", label, sup, dyn) if sup.positive? || dyn.positive?
+  end
+  puts format("  %-34s %12d %12d", "fragments d'événements", result.event_fragments, 0)
+end
+
 command = ARGV.shift
 
 case command
@@ -37,18 +49,19 @@ when "check"
   report.errors.each { |error| puts "  #{error}" }
   exit(report.errors.empty? ? 0 : 1)
 when "audit"
+  if ARGV.first == "--scripts"
+    ARGV.shift
+    dir = ARGV.shift
+    abort "usage: rmxp audit --scripts DIR" unless dir
+    result = Rmxp::Audit.new(nil, nil).run_scripts_dir(dir)
+    print_audit(result)
+    exit 0
+  end
   game_dir = ARGV.shift
-  abort "usage: rmxp audit JEU [TRAVAIL]" unless game_dir
+  abort "usage: rmxp audit JEU [TRAVAIL] | rmxp audit --scripts DIR" unless game_dir
   work_dir = ARGV.shift || File.join("tmp", "audit", slug(game_dir))
   result = Rmxp::Audit.new(game_dir, work_dir).run
-  puts "sources analysées: #{result[:sources]}"
-  Rmxp::Audit::CATEGORIES.each do |category|
-    count = result[:stats][category]
-    puts format("  %-24s %d", category, count) if count.positive?
-  end
-  unless result[:alias_update_files].empty?
-    puts "  alias sur update dans: #{result[:alias_update_files].join(', ')}"
-  end
+  print_audit(result)
 when "help", nil
   puts <<~TEXT
     rmxp — aller-retour des données Pokémon Essentials

@@ -19,8 +19,15 @@
 - Portage Uranium warmwinter : le dépôt ne contient pas les assets ; il faut les copier
   depuis l'archive d'origine et créer `Patches/` (le port attend ce dossier). À
   automatiser si les builds Uranium en ont besoin.
-- Audit du dynamisme : PSDK reste à couvrir (formats VD/YARB, scripts du dépôt
-  `pokemonsdk`) ; l'audit Essentials est fait.
+- Audit du dynamisme : Essentials et PSDK sont audités et classés.
+- Jalon 4 (cœur des combats, kit v21.1) : `Battle::DebugSceneNoVisuals` existe ; harnais
+  CRuby pur fonctionnel (`test/battle/run_battles.rb`), N combats, graine MT19937,
+  journal tours/dégâts/PV/vainqueur, déterministe. Restent : données de combat en
+  littéraux Ruby au build (au lieu de Marshal), compilation Spinel, oracle
+  CRuby/Spinel, mesure du gain et liste des blocages pour le jeu entier.
+- Uranium : le menu de langue redessine tout à chaque frame (`pbDrawShadowText`,
+  `BitmapWrapper#initialize`, cache de bitmaps, `canonicalize` des chemins) ; diagnostic
+  fait, pas d'optimisation décidée.
 - Transformations : traiter les chaînes d'alias sur `Graphics.update` (5 à 16 par jeu)
   comme des alias normaux, et les `eval` des événements comme des méthodes générées.
 - Shim `Array#sample(n)` : exact pour n <= 10 ; au-delà, repli sur un Fisher-Yates partiel
