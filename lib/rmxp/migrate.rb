@@ -57,17 +57,9 @@ module Rmxp
     private
 
     def transform_source(source)
-      whens = 0
-      source = source.lines.map do |line|
-        replaced = line.sub(/^(\s*)when\s+((?:[^:\n]|:(?!:))+?):(?!:)([ \t]*)(.*)$/) do
-          whens += 1
-          "#{Regexp.last_match(1)}when #{Regexp.last_match(2)} then#{Regexp.last_match(3)}#{Regexp.last_match(4)}"
-        end
-        replaced
-      end.join
-
+      source, whens = fix_when_colons(source)
       result = Prism.parse(source)
-      return [source, 0, 0, whens, true] unless result.value
+      return [source, 0, 0, whens, 0, true] unless result.value
 
       replacements = []
       queue = [result.value]
@@ -116,6 +108,19 @@ module Rmxp
         return [out, replacements.length, dynamic, whens, breaks, true]
       end
       [out, replacements.length, dynamic, whens, breaks, false]
+    end
+
+    # Ruby 1.8 tolérait `when valeur:` ; Prism signale le ':' fautif. On ne
+    # touche qu'à ces offsets, jamais aux `::`, symboles ou chaînes.
+    def fix_when_colons(source)
+      result = Prism.parse(source)
+      offsets = result.errors.select { |error| error.message.include?("predicates of a `when` clause") }
+                            .map { |error| error.location.start_offset }
+                            .select { |offset| source.getbyte(offset) == 58 }
+                            .uniq
+      out = source.dup
+      offsets.sort.reverse_each { |offset| out[offset] = " then" }
+      [out, offsets.length]
     end
 
     def binary_regex_replacement(node)
