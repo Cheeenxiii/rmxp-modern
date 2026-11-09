@@ -36,6 +36,19 @@ when "check"
        "événements: #{report.events} fragment(s) (+#{report.event_errors} erreur(s))"
   report.errors.each { |error| puts "  #{error}" }
   exit(report.errors.empty? ? 0 : 1)
+when "audit"
+  game_dir = ARGV.shift
+  abort "usage: rmxp audit JEU [TRAVAIL]" unless game_dir
+  work_dir = ARGV.shift || File.join("tmp", "audit", slug(game_dir))
+  result = Rmxp::Audit.new(game_dir, work_dir).run
+  puts "sources analysées: #{result[:sources]}"
+  Rmxp::Audit::CATEGORIES.each do |category|
+    count = result[:stats][category]
+    puts format("  %-24s %d", category, count) if count.positive?
+  end
+  unless result[:alias_update_files].empty?
+    puts "  alias sur update dans: #{result[:alias_update_files].join(', ')}"
+  end
 when "help", nil
   puts <<~TEXT
     rmxp — aller-retour des données Pokémon Essentials
@@ -44,6 +57,7 @@ when "help", nil
       rmxp build PROJET SORTIE    reconstruit Data/ et Scripts.rxdata
       rmxp roundtrip JEU [TMP]    unpack + build + comparaison avec l'original
       rmxp check JEU [TMP]        compilation statique des scripts et événements
+      rmxp audit JEU [TMP]        inventaire du Ruby dynamique
   TEXT
 else
   abort "commande inconnue: #{command}"

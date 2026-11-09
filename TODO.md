@@ -19,8 +19,10 @@
 - Portage Uranium warmwinter : le dépôt ne contient pas les assets ; il faut les copier
   depuis l'archive d'origine et créer `Patches/` (le port attend ce dossier). À
   automatiser si les builds Uranium en ont besoin.
-- Audit du dynamisme : compter les chaînes d'alias sur `Graphics.update` (Essentials et
-  Reborn en ont) comme cas à traiter par les transformations.
+- Audit du dynamisme : PSDK reste à couvrir (formats VD/YARB, scripts du dépôt
+  `pokemonsdk`) ; l'audit Essentials est fait.
+- Transformations : traiter les chaînes d'alias sur `Graphics.update` (5 à 16 par jeu)
+  comme des alias normaux, et les `eval` des événements comme des méthodes générées.
 - Shim `Array#sample(n)` : exact pour n <= 10 ; au-delà, repli sur un Fisher-Yates partiel
   qui peut différer de CRuby. Aucun usage connu dans les scénarios visés.
 - Table/Color/Tone/Rect conservés en blob Marshal (voir ci-dessus).

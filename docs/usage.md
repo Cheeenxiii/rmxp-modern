@@ -69,6 +69,18 @@ scripts: 402 (+0 erreur(s)), événements: 1112 fragment(s) (+0 erreur(s))
 
 Code de sortie non nul s'il reste une erreur de syntaxe.
 
+## Auditer le Ruby dynamique
+
+```bash
+bin/rmxp audit chemin/vers/le/jeu
+```
+
+Compte par jeu les constructions qui gênent une compilation AOT : `eval`,
+`send`/`__send__` calculés, `define_method`, `method_missing`, `alias`,
+`Marshal`, `const_get`/`const_set`, `ObjectSpace`, etc. Les fragmentation
+d'événements sont incluses. Sortie : nombre de sources analysées puis compteurs
+non nuls.
+
 ## Jeux en archive RGSSAD
 
 `rmxp` ne déchiffre pas les archives (ce n'est pas dans le périmètre du projet).

@@ -20,6 +20,12 @@ Compilation statique :
 bin/rmxp check chemin/vers/jeu
 ```
 
+Audit du Ruby dynamique :
+
+```bash
+bin/rmxp audit chemin/vers/jeu
+```
+
 Scénario headless (mkxp-z compilé dans `vendor/`, Xvfb installé) :
 
 ```bash

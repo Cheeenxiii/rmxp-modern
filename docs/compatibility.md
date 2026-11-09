@@ -54,6 +54,22 @@ Kit v21.1 **reconstruit** : démarre sur `Scene_Intro`. Fenêtre de mesure : 81 
 2,001 s, soit 40,5 fps ; médiane 25,0 ms par frame. Deux exécutions avec la même graine
 donnent un dump identique (état + tirages RNG) ; une autre graine change les tirages.
 
+## Audit du Ruby dynamique (`rmxp audit`)
+
+Sources analysées = scripts + fragments d'événements (commandes 355/655 recollées).
+
+| Jeu | Sources | eval | send calculés | alias (dont `update`) | Marshal | const_get/set | define_method | method_missing | ObjectSpace |
+|---|---|---|---|---|---|---|---|---|---|
+| Kit v21.1 | 1 514 | 9 | 5 | 85 (5) | 39 | 42/3 | 1 | 0 | 5 |
+| Uranium | 11 545 | 21 | 13 | 176 (16) | 99 | 35/2 | 0 | 0 | 13 |
+| Insurgence | 17 793 | 21 | 35 | 106 (16) | 135 | 38/2 | 0 | 0 | 12 |
+| Reborn 19.5 | 17 920 | 85 | 23 | 119 (10) | 77 | 13/0 | 0 | 0 | 4 |
+
+Les chaînes d'alias sur `Graphics.update` sont nombreuses (5 à 16 par jeu, toutes familles
+confondues) : Essentials et Reborn remplacent `Graphics.update` pour leurs transitions et
+leurs effets ; toute transformation de l'API graphique devra les traiter comme des alias
+ordinaires, pas comme un point d'entrée unique.
+
 ## Mesures headless (mkxp-z sous Xvfb)
 
 Mesure sans limite de fréquence (`fixedFramerate: -1`) : « logique » = temps entre la fin

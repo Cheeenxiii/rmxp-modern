@@ -20,6 +20,7 @@ jeux puisse avoir ses formats sans contaminer le reste.
 | `lib/rmxp/scripts.rb` | `Scripts.rxdata` ↔ un `.rb` par section, avec l'ordre et les identifiants |
 | `lib/rmxp/rgss.rb` | types RGSS à format Marshal propre (Table, Color, Tone, Rect, Font) |
 | `lib/rmxp/check.rb` | compilation statique des scripts et des fragments d'événements (Prism) |
+| `lib/rmxp/audit.rb` | inventaire du Ruby dynamique (eval, send, alias, Marshal...) |
 | `lib/rmxp/mt19937.rb` | MT19937 et conversions CRuby (`rand`, `rand(n)`, `rand(range)`, flottants) |
 | `lib/rmxp/preload/` | shim RNG et sonde de scénario chargés par mkxp-z |
 
