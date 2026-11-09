@@ -81,6 +81,10 @@ bin/rmxp migrate JEU SORTIE
 
 Le dossier de sortie doit contenir les assets du jeu (Graphics, Audio, Fonts) ;
 pour Uranium, partir d'une copie complète du jeu ou du port warmwinter.
+La migration installe aussi un cache générique de `System.power_state` (5 s par
+défaut, `RMXP_POWER_CACHE_SECONDS=0` pour le désactiver) : les jeux Essentials
+qui testent la batterie à chaque frame y gagnent beaucoup sur les plateformes
+où `SDL_GetPowerInfo` est coûteux.
 
 ## Auditer le Ruby dynamique
 
