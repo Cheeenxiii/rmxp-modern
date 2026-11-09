@@ -238,6 +238,14 @@ def double_state(states, left, right)
 end
 
 module Win32API_Impl
+	module Kernel32
+		class GetCurrentThreadId
+			def call(_args)
+				return 1
+			end
+		end
+	end
+
 	module User32
 		class Keybd_event
 			Seq = [
@@ -270,11 +278,6 @@ module Win32API_Impl
 		end
 
 		class GetForegroundWindow
-			def call(_args)
-				return 1
-			end
-		end
-		class GetCurrentThreadId
 			def call(_args)
 				return 1
 			end
