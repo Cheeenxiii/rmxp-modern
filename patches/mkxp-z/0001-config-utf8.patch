@@ -1,0 +1,15 @@
+diff --git a/src/config.cpp b/src/config.cpp
+index c9aae20..c887a1e 100644
+--- a/src/config.cpp
++++ b/src/config.cpp
+@@ -106,7 +106,9 @@ json::value readConfFile(const char *path) {
+     
+     try {
+         std::string cfg = mkxp_fs::contentsOfFileAsString(path);
+-        ret = json::parse5(Encoding::convertString(cfg));
++        // mkxp.json is UTF-8 by specification; do not run encoding detection
++        // on it (uchardet can guess a legacy charset for a non-ASCII title).
++        ret = json::parse5(cfg);
+     }
+     catch (const std::exception &e) {
+         Debug() << "Failed to parse" << path << ":" << e.what();

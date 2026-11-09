@@ -49,6 +49,13 @@ when "check"
        "événements: #{report.events} fragment(s) (+#{report.event_errors} erreur(s))"
   report.errors.each { |error| puts "  #{error}" }
   exit(report.errors.empty? ? 0 : 1)
+when "migrate"
+  game_dir, out_dir = ARGV
+  abort "usage: rmxp migrate JEU SORTIE" unless game_dir && out_dir
+  result = Rmxp::Migrate.new(game_dir, out_dir).run
+  puts "migrate: #{result.scripts} scripts, #{result.regexes} regexes converties, " \
+       "#{result.dynamic_flags} flags n retirés, #{result.parse_errors} erreur(s) de parsing"
+  puts "sortie: #{File.expand_path(out_dir)}"
 when "audit"
   if ARGV.first == "--scripts"
     ARGV.shift
@@ -72,6 +79,7 @@ when "help", nil
       rmxp roundtrip JEU [TMP]    unpack + build + comparaison avec l'original
       rmxp check JEU [TMP]        compilation statique des scripts et événements
       rmxp audit JEU [TMP]        inventaire du Ruby dynamique
+      rmxp migrate JEU SORTIE     copie + migrations de compatibilité (pré-v19)
   TEXT
 else
   abort "commande inconnue: #{command}"

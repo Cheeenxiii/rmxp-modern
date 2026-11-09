@@ -6,6 +6,7 @@ require_relative "rmxp/scripts"
 require_relative "rmxp/project"
 require_relative "rmxp/check"
 require_relative "rmxp/audit"
+require_relative "rmxp/migrate"
 
 module Rmxp
   VERSION = "0.1.0"

@@ -69,6 +69,19 @@ scripts: 402 (+0 erreur(s)), événements: 1112 fragment(s) (+0 erreur(s))
 
 Code de sortie non nul s'il reste une erreur de syntaxe.
 
+## Migrer un jeu pré-v19
+
+`migrate` copie le jeu, externalise `Scripts.rxdata`, applique les transformations
+de compatibilité génériques (regex à échappements d'octets, `Thread.critical`,
+shims Win32API/Ruby 1.8) puis reconstruit les scripts. Le jeu source n'est pas modifié.
+
+```bash
+bin/rmxp migrate JEU SORTIE
+```
+
+Le dossier de sortie doit contenir les assets du jeu (Graphics, Audio, Fonts) ;
+pour Uranium, partir d'une copie complète du jeu ou du port warmwinter.
+
 ## Auditer le Ruby dynamique
 
 ```bash
