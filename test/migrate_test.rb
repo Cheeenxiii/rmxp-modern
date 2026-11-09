@@ -8,6 +8,7 @@ cases = {
   "case x\nwhen 0: y=1\nend\n" => "case x\nwhen 0 then y=1\nend\n",
   "case x\nwhen IO::SEEK_SET then y=1\nend\n" => "case x\nwhen IO::SEEK_SET then y=1\nend\n",
   "case x\nwhen :foo then y=1\nend\n" => "case x\nwhen :foo then y=1\nend\n",
+  "def f\n  return 1\n  break\nend\n" => "def f\n  return 1\n  raise LocalJumpError, \"break outside loop\"\nend\n",
 }
 failures = 0
 cases.each do |source, expected|

@@ -10,9 +10,10 @@ module Rmxp
     FLAGS = { "i" => "Regexp::IGNORECASE", "m" => "Regexp::MULTILINE", "x" => "Regexp::EXTENDED" }.freeze
     COMPAT = File.expand_path("preload/compat", __dir__)
     PRELOADS = %w[preload/win32_wrap.rb preload/ruby18_wrap.rb preload/ruby18_extra.rb
-                  preload/mkxp_wrap.rb preload/add_stdlib.rb preload/power_cache.rb].freeze
+                  preload/mkxp_wrap.rb preload/add_stdlib.rb preload/power_cache.rb preload/tmp_env.rb].freeze
 
-    Result = Struct.new(:scripts, :regexes, :dynamic_flags, :when_colons, :parse_errors, keyword_init: true)
+    Result = Struct.new(:scripts, :regexes, :dynamic_flags, :when_colons, :break_fixes,
+                        :parse_errors, keyword_init: true)
 
     def initialize(game_dir, out_dir)
       @game_dir = File.expand_path(game_dir)
@@ -25,19 +26,22 @@ module Rmxp
 
       FileUtils.mkdir_p(@out_dir)
       FileUtils.cp_r(File.join(@game_dir, "."), @out_dir)
+      FileUtils.chmod_R("u+w", @out_dir)
       scripts_dir = File.join(@out_dir, "scripts")
       Rmxp::Scripts.unpack(File.join(@out_dir, "Data/Scripts.rxdata"), scripts_dir)
 
       regexes = 0
       dynamic = 0
       when_colons = 0
+      break_fixes = 0
       parse_errors = 0
       Dir.glob(File.join(scripts_dir, "*.rb")).sort.each do |path|
         source = File.binread(path)
-        out, count, dyn, whens, error = transform_source(source)
+        out, count, dyn, whens, breaks, error = transform_source(source)
         regexes += count
         dynamic += dyn
         when_colons += whens
+        break_fixes += breaks
         parse_errors += 1 if error
         File.binwrite(path, out) unless out == source
       end
@@ -47,7 +51,7 @@ module Rmxp
       ensure_game_ini
       Result.new(scripts: Dir.glob(File.join(scripts_dir, "*.rb")).length,
                  regexes: regexes, dynamic_flags: dynamic, when_colons: when_colons,
-                 parse_errors: parse_errors)
+                 break_fixes: break_fixes, parse_errors: parse_errors)
     end
 
     private
@@ -70,8 +74,12 @@ module Rmxp
       until queue.empty?
         node = queue.shift
         if node.is_a?(Prism::RegularExpressionNode) && node.content.include?("\\x") &&
-           !node.content.include?("\#{") && !node.content.match?(/[+*{]/)
-          replacement = byte_regex_replacement(node)
+           !node.content.include?("\#{")
+          replacement = if node.content.match?(/[+*{]/)
+                          binary_regex_replacement(node)
+                        else
+                          byte_regex_replacement(node)
+                        end
           replacements << [node.location.start_offset, node.location.end_offset, replacement] if replacement
         end
         node.compact_child_nodes.each { |child| queue << child }
@@ -101,7 +109,57 @@ module Rmxp
           dynamic += 1
         end
       end
-      [out, replacements.length, dynamic, whens, false]
+      out, breaks = fix_invalid_breaks(out)
+      begin
+        RubyVM::InstructionSequence.compile(out)
+      rescue SyntaxError
+        return [out, replacements.length, dynamic, whens, breaks, true]
+      end
+      [out, replacements.length, dynamic, whens, breaks, false]
+    end
+
+    def binary_regex_replacement(node)
+      flags = node.closing.chars.filter_map { |ch| FLAGS[ch] }
+      text = "Regexp.new(#{node.content.dump}.b, Regexp::NOENCODING"
+      text << " | #{flags.join(' | ')}" unless flags.empty?
+      text << ")"
+      text
+    end
+
+    # Ruby 1.8 acceptait des `break`/`next` hors boucle qui ne compilent plus
+    # en Ruby 3. On les remplace par l'équivalent d'exécution (LocalJumpError).
+    def fix_invalid_breaks(source)
+      result = Prism.parse(source)
+      return [source, 0] unless result.value
+
+      nodes = []
+      walk = lambda do |node, loops, blocks, lambdas|
+        case node
+        when Prism::DefNode, Prism::ClassNode, Prism::ModuleNode
+          node.compact_child_nodes.each { |child| walk.call(child, 0, 0, 0) }
+          next
+        when Prism::WhileNode, Prism::UntilNode, Prism::ForNode
+          node.compact_child_nodes.each { |child| walk.call(child, loops + 1, blocks, lambdas) }
+          next
+        when Prism::BlockNode
+          node.compact_child_nodes.each { |child| walk.call(child, loops, blocks + 1, lambdas) }
+          next
+        when Prism::LambdaNode
+          node.compact_child_nodes.each { |child| walk.call(child, loops, blocks, lambdas + 1) }
+          next
+        when Prism::BreakNode, Prism::NextNode
+          nodes << node if loops.zero? && (blocks.zero? || lambdas.positive?)
+        end
+        node.compact_child_nodes.each { |child| walk.call(child, loops, blocks, lambdas) }
+      end
+      walk.call(result.value, 0, 0, 0)
+      out = source.dup
+      nodes.sort_by { |node| -node.location.start_offset }.each do |node|
+        kind = node.is_a?(Prism::BreakNode) ? "break" : "next"
+        out[node.location.start_offset...node.location.end_offset] =
+          "raise LocalJumpError, \"#{kind} outside loop\""
+      end
+      [out, nodes.length]
     end
 
     def byte_regex_replacement(node)

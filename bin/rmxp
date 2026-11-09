@@ -54,7 +54,8 @@ when "migrate"
   abort "usage: rmxp migrate JEU SORTIE" unless game_dir && out_dir
   result = Rmxp::Migrate.new(game_dir, out_dir).run
   puts "migrate: #{result.scripts} scripts, #{result.regexes} regexes converties, " \
-       "#{result.dynamic_flags} flags n retirés, #{result.parse_errors} erreur(s) de parsing"
+       "#{result.dynamic_flags} flags n retirés, #{result.when_colons} when convertis, " \
+       "#{result.break_fixes} break/next réparés, #{result.parse_errors} script(s) invalide(s)"
   puts "sortie: #{File.expand_path(out_dir)}"
 when "audit"
   if ARGV.first == "--scripts"
