@@ -1,0 +1,40 @@
+#!/usr/bin/env ruby
+$LOAD_PATH.unshift(File.expand_path("../lib", __dir__))
+require "rmxp"
+
+def slug(path)
+  File.expand_path(path).sub(Dir.pwd + "/", "").gsub(/[^A-Za-z0-9_.-]+/, "__")
+end
+
+command = ARGV.shift
+
+case command
+when "unpack"
+  game_dir, out_dir = ARGV
+  abort "usage: rmxp unpack JEU SORTIE" unless game_dir && out_dir
+  manifest = Rmxp::Project.new(game_dir).unpack(game_dir, out_dir)
+  puts "#{manifest['data'].length} fichiers de données, scripts: #{manifest['scripts'] ? 'oui' : 'non'}"
+when "build"
+  project_dir, out_dir = ARGV
+  abort "usage: rmxp build PROJET SORTIE" unless project_dir && out_dir
+  Rmxp::Project.new(project_dir).build(out_dir)
+  puts "build: #{out_dir}"
+when "roundtrip"
+  game_dir = ARGV.shift
+  abort "usage: rmxp roundtrip JEU [TRAVAIL]" unless game_dir
+  work_dir = ARGV.shift || File.join("tmp", "roundtrip", slug(game_dir))
+  report = Rmxp::Project.new(game_dir).roundtrip(work_dir)
+  puts format("%-40s fichiers=%-4d octet=%d sémantique=%d opaque=%d scripts=%s",
+              report["game"], report["files"], report["byte_identical"],
+              report["semantic_identical"], report["opaque"], report["scripts"] == 1 ? "ok" : "KO")
+when "help", nil
+  puts <<~TEXT
+    rmxp — aller-retour des données Pokémon Essentials
+
+      rmxp unpack JEU SORTIE      extrait Data/ et Scripts.rxdata en texte
+      rmxp build PROJET SORTIE    reconstruit Data/ et Scripts.rxdata
+      rmxp roundtrip JEU [TMP]    unpack + build + comparaison avec l'original
+  TEXT
+else
+  abort "commande inconnue: #{command}"
+end

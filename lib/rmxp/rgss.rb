@@ -1,0 +1,33 @@
+# RGSS value types that Marshal stores in their own binary format.
+#
+# RMXP data files contain Table, Color, Tone and Rect values. They are not
+# plain Ruby objects: Marshal calls their `_dump`/`_load`. We do not need to
+# interpret them for a round trip, so the marshalled payload is kept verbatim.
+# That makes load/dump byte-identical and keeps the text form compact.
+class RmxpBlob
+  attr_reader :payload
+
+  def self._load(payload)
+    allocate.tap { |value| value.instance_variable_set(:@payload, payload) }
+  end
+
+  def _dump(_depth)
+    @payload
+  end
+
+  def ==(other)
+    other.class == self.class && other.payload == payload
+  end
+
+  alias eql? ==
+
+  def hash
+    [self.class, payload].hash
+  end
+end
+
+class Table < RmxpBlob; end
+class Color < RmxpBlob; end
+class Tone < RmxpBlob; end
+class Rect < RmxpBlob; end
+class Font < RmxpBlob; end
