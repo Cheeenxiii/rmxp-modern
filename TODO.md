@@ -20,11 +20,13 @@
   depuis l'archive d'origine et créer `Patches/` (le port attend ce dossier). À
   automatiser si les builds Uranium en ont besoin.
 - Audit du dynamisme : Essentials et PSDK sont audités et classés.
-- Jalon 4 (cœur des combats, kit v21.1) : `Battle::DebugSceneNoVisuals` existe ; harnais
-  CRuby pur fonctionnel (`test/battle/run_battles.rb`), N combats, graine MT19937,
-  journal tours/dégâts/PV/vainqueur, déterministe. Restent : données de combat en
-  littéraux Ruby au build (au lieu de Marshal), compilation Spinel, oracle
-  CRuby/Spinel, mesure du gain et liste des blocages pour le jeu entier.
+- Jalon 4 (cœur des combats, kit v21.1) : scène sans visuels trouvée, harnais CRuby pur
+  fonctionnel (1000 combats = 80,9 s après chargement), données de combat en littéraux
+  Ruby identiques aux données Marshal (50 combats), oracle CRuby disponible.
+  Blocage : la compilation Spinel du programme complet (8,5 Mo) et d'un sous-ensemble
+  (6,1 Mo, scripts de combat + données) ne termine pas en 10 min, sans refus émis.
+  Prochain essai : réduire la fermeture (quelques espèces/moves, scripts strictement
+  nécessaires) sous ~500 Ko pour obtenir la liste des refus et décider hybride/plan B.
 - Uranium : le menu de langue redessine tout à chaque frame (`pbDrawShadowText`,
   `BitmapWrapper#initialize`, cache de bitmaps, `canonicalize` des chemins) ; diagnostic
   fait, pas d'optimisation décidée.

@@ -36,6 +36,20 @@ RMXP_BATTLES=30 RMXP_SEED=7 RMXP_LOG=tmp/battle/log.txt ruby test/battle/run_bat
 
 Deux exécutions avec la même graine doivent produire le même journal.
 
+Données de combat en littéraux Ruby (à relancer après un changement de données) :
+
+```bash
+ruby test/battle/gen_battle_data.rb
+RMXP_USE_LITERAL_DATA=1 RMXP_BATTLES=50 ruby test/battle/run_battles.rb
+```
+
+Assemblage pour Spinel (à faire évoluer vers un sous-ensemble plus petit) :
+
+```bash
+ruby test/battle/build_spinel.rb
+vendor/spinel/bin/spinel tmp/battle/spinel_battle.rb -o tmp/battle/spinel_battle
+```
+
 Scénario headless (mkxp-z compilé dans `vendor/`, Xvfb installé) :
 
 ```bash

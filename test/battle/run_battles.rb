@@ -30,13 +30,41 @@ Dir.glob(File.join(SCRIPTS, "*.rb")).sort.each do |path|
   eval(File.binread(path), TOPLEVEL_BINDING, name)
 end
 
-GameData.load_all
+if ENV["RMXP_USE_LITERAL_DATA"]
+  load(File.join(ROOT, "tmp/battle/battle_data.rb"))
+else
+  GameData.load_all
+end
 $game_switches = Array.new(2000, false)
 $game_variables = Array.new(2000, 0)
 $game_temp = Game_Temp.new
 $game_system = Game_System.new
 $PokemonSystem = PokemonSystem.new
-$player = Player.new("PLAYER", GameData::TrainerType.keys.first)
+class RmxpFakeOwner
+  attr_reader :name
+  def initialize
+    @name = "PLAYER"
+    @public_id = 0
+  end
+  def public_id; 0; end
+  def language; 2; end
+  def pokedex; @pokedex ||= RmxpFakePokedex.new; end
+  def secret_ID; 0; end
+  def party; []; end
+  def money; 0; end
+  def badges; []; end
+  def badge_count; 0; end
+  def has_pokedex?; true; end
+end
+
+class RmxpFakePokedex
+  def register(_pkmn); end
+  def seen?(*_a); true; end
+  def owned?(*_a); true; end
+  def seen_form?(*_a); true; end
+  def owned_form?(*_a); true; end
+end
+$player = RmxpFakeOwner.new
 $game_map = Object.new
 class << $game_map
   def metadata; nil; end

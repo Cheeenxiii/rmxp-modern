@@ -9,13 +9,14 @@ end
 def print_audit(result)
   puts "sources: scripts=#{result.scripts} fragments_evenements=#{result.event_fragments} " \
        "erreurs_parsing=#{result.parse_errors}"
-  puts format("  %-34s %12s %12s", "catégorie", "supprimable", "dynamique")
+  puts format("  %-34s %12s %12s %12s", "catégorie", "supprimable", "énumérable", "dynamique")
   Rmxp::Audit::CATEGORIES.each do |key, label|
     sup = result.stats[:supprimable][key]
+    enum = result.stats[:enumerable][key]
     dyn = result.stats[:dynamique][key]
-    puts format("  %-34s %12d %12d", label, sup, dyn) if sup.positive? || dyn.positive?
+    puts format("  %-34s %12d %12d %12d", label, sup, enum, dyn) if sup.positive? || enum.positive? || dyn.positive?
   end
-  puts format("  %-34s %12d %12d", "fragments d'événements", result.event_fragments, 0)
+  puts format("  %-34s %12d %12d %12d", "fragments d'événements", result.event_fragments, 0, 0)
 end
 
 command = ARGV.shift

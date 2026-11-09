@@ -5,8 +5,10 @@ module Rmxp
   # - supprimable : la cible est connue au build (littéral, chaîne/symbole,
   #   alias, fragment d'événement) et une transformation peut la remplacer par
   #   un appel direct ou du code généré ;
-  # - dynamique : la cible n'est pas connue au build (nom calculé, eval
-  #   arbitraire, ObjectSpace…).
+  # - énumérable : la cible est calculée mais reste dans un ensemble fini connu
+  #   au build (constante de module, famille de méthodes, ivars d'une classe) ;
+  # - dynamique : la cible n'est pas bornée au build (eval arbitraire,
+  #   ObjectSpace, récepteur variable…).
   class Audit
     CATEGORIES = {
       eval: "eval (chaîne littérale)",
@@ -33,7 +35,7 @@ module Rmxp
       project = File.join(@work_dir, "unpacked")
       Project.new(@game_dir).unpack(@game_dir, project)
 
-      stats = { supprimable: Hash.new(0), dynamique: Hash.new(0) }
+      stats = { supprimable: Hash.new(0), enumerable: Hash.new(0), dynamique: Hash.new(0) }
       scripts = 0
       parse_errors = 0
 
@@ -53,7 +55,7 @@ module Rmxp
 
     # Audit d'une arborescence de scripts déjà extraite (PSDK par exemple).
     def run_scripts_dir(dir)
-      stats = { supprimable: Hash.new(0), dynamique: Hash.new(0) }
+      stats = { supprimable: Hash.new(0), enumerable: Hash.new(0), dynamique: Hash.new(0) }
       scripts = 0
       parse_errors = 0
       Dir.glob(File.join(dir, "**", "*.rb")).sort.each do |path|
@@ -73,6 +75,7 @@ module Rmxp
       counter = Counter.new
       counter.visit(result.value)
       counter.supprimable.each { |key, value| stats[:supprimable][key] += value }
+      counter.enumerable.each { |key, value| stats[:enumerable][key] += value }
       counter.dynamique.each { |key, value| stats[:dynamique][key] += value }
       0
     end
@@ -156,12 +159,17 @@ module Rmxp
     end
 
     class Counter < Prism::Visitor
-      attr_reader :supprimable, :dynamique
+      attr_reader :supprimable, :enumerable, :dynamique
 
       def initialize
         super
         @supprimable = Hash.new(0)
+        @enumerable = Hash.new(0)
         @dynamique = Hash.new(0)
+      end
+
+      def constant_receiver?(node)
+        node.is_a?(Prism::ConstantReadNode) || node.is_a?(Prism::ConstantPathNode)
       end
 
       def literal?(node)
@@ -187,17 +195,25 @@ module Rmxp
         when :send, :__send__, :public_send
           if literal?(first_argument(node))
             @supprimable[:send] += 1
+          elsif constant_receiver?(node.receiver)
+            @enumerable[:send] += 1
           else
             @dynamique[:send] += 1
           end
         when :define_method
-          literal?(first_argument(node)) ? @supprimable[:define_method] += 1 : @dynamique[:define_method] += 1
+          literal?(first_argument(node)) ? @supprimable[:define_method] += 1 : @enumerable[:define_method] += 1
         when :alias_method
-          literal?(first_argument(node)) ? @supprimable[:alias] += 1 : @dynamique[:alias] += 1
+          literal?(first_argument(node)) ? @supprimable[:alias] += 1 : @enumerable[:alias] += 1
         when :const_get, :const_set
-          literal?(first_argument(node)) ? @supprimable[:const] += 1 : @dynamique[:const] += 1
+          if literal?(first_argument(node))
+            @supprimable[:const] += 1
+          elsif constant_receiver?(node.receiver)
+            @enumerable[:const] += 1
+          else
+            @dynamique[:const] += 1
+          end
         when :instance_variable_get, :instance_variable_set
-          literal?(first_argument(node)) ? @supprimable[:ivar] += 1 : @dynamique[:ivar] += 1
+          literal?(first_argument(node)) ? @supprimable[:ivar] += 1 : @enumerable[:ivar] += 1
         when :load
           if constant_named?(node.receiver, :Marshal)
             @supprimable[:marshal_load] += 1
@@ -217,7 +233,7 @@ module Rmxp
       end
 
       def visit_def_node(node)
-        @dynamique[:method_missing] += 1 if node.name == :method_missing
+        @enumerable[:method_missing] += 1 if node.name == :method_missing
         super
       end
 
