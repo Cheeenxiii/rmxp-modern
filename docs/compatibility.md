@@ -54,6 +54,22 @@ Kit v21.1 **reconstruit** : démarre sur `Scene_Intro`. Fenêtre de mesure : 81 
 2,001 s, soit 40,5 fps ; médiane 25,0 ms par frame. Deux exécutions avec la même graine
 donnent un dump identique (état + tirages RNG) ; une autre graine change les tirages.
 
+## Mesures headless (mkxp-z sous Xvfb)
+
+Mesure sans limite de fréquence (`fixedFramerate: -1`) : « logique » = temps entre la fin
+d'un `Graphics.update` et le début du suivant (entrées + mise à jour de scène), « rendu »
+= durée de `Graphics.update` sans attente de fréquence. p50/p95/p99 sur une fenêtre de
+2 s. Rendu en **llvmpipe** (OpenGL logiciel), donc non représentatif d'un GPU réel.
+
+| Cible | Scène | fps | logique p50/p95/p99 (ms) | rendu p50/p95/p99 (ms) | total p50/p95/p99 (ms) | GC |
+|---|---|---|---|---|---|---|
+| Kit v21.1 reconstruit | Scene_Intro | 2 315 | 0,019 / 0,032 / 0,057 | 0,395 / 0,499 / 0,804 | 0,415 / 0,522 / 0,821 | 0 |
+| Reborn 19.5 reconstruit (mkxp-z de Reborn) | Scene_Intro | 1 749 | 0,037 / 0,049 / 0,083 | 0,506 / 0,609 / 1,292 | 0,544 / 0,657 / 1,324 | 0 |
+| Uranium (port warmwinter + assets d'origine) | sélection de langue | 154 | 5,11 / 6,14 / 7,80 | 1,22 / 1,57 / 2,17 | 6,36 / 7,59 / 9,21 | 6 GC, 8 ms |
+
+Déterminisme : même graine → mêmes tirages et même état ; graine différente → tirages
+différents (kit v21.1 et Uranium vérifiés).
+
 ## Non traité
 
 - Pokémon SDK (formats VD `.dat`, scripts YARB) : hors périmètre de cette étape.

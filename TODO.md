@@ -13,8 +13,14 @@
   des kits v19+ et Reborn démarrent.
 - Reborn sous Xvfb : le boot dépasse le timebox (données volumineuses, ou blocage
   spécifique à Reborn). À reprendre avec un affichage réel ; le kit v21.1, lui, démarre.
-- Mesure du temps par image sur Uranium via le portage warmwinter (prochaine étape du
-  jalon 2, après le kit v21.1).
+- mkxp-z compilé sans extension Ruby `openssl` (`--with-out-ext=openssl...`) : Reborn
+  (Updater/net/http) échoue avec notre binaire ; utiliser le mkxp-z fourni par Reborn
+  pour Reborn, ou corriger le build Ruby (jalon 6).
+- Portage Uranium warmwinter : le dépôt ne contient pas les assets ; il faut les copier
+  depuis l'archive d'origine et créer `Patches/` (le port attend ce dossier). À
+  automatiser si les builds Uranium en ont besoin.
+- Audit du dynamisme : compter les chaînes d'alias sur `Graphics.update` (Essentials et
+  Reborn en ont) comme cas à traiter par les transformations.
 - Shim `Array#sample(n)` : exact pour n <= 10 ; au-delà, repli sur un Fisher-Yates partiel
   qui peut différer de CRuby. Aucun usage connu dans les scénarios visés.
 - Table/Color/Tone/Rect conservés en blob Marshal (voir ci-dessus).

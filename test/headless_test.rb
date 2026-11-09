@@ -50,6 +50,7 @@ unless config.include?("headless_preload.rb")
   lines = config.lines
   brace = lines.index { |line| line.strip.start_with?("{") } || 0
   lines.insert(brace + 1, "  \"preloadScript\": [\"headless_preload.rb\"],\n")
+  lines.insert(brace + 1, "  \"fixedFramerate\": -1,\n") if ENV["RMXP_UNCAPPED"]
   config = lines.join
 end
 File.write(config_path, config)
