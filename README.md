@@ -3,9 +3,12 @@
 Transformer des fangames Pokémon basés sur RGSS (Pokémon Essentials, puis Pokémon SDK)
 en dépôts modernes, puis en jeux recompilés en natif.
 
-État actuel : **aller-retour des données Essentials**. `rmxp unpack` extrait les données
-et les scripts d'un jeu en texte (YAML + `.rb`), `rmxp build` les reconstruit. Testé sur
-les kits Essentials v16.2 à v21.1, Uranium, Insurgence et Reborn.
+État actuel : **aller-retour des données Essentials** et **compilation statique**.
+`rmxp unpack` extrait les données et les scripts d'un jeu en texte (YAML + `.rb`),
+`rmxp build` les reconstruit, `rmxp check` vérifie que scripts et événements compilent.
+Testé sur les kits Essentials v16.2 à v21.1, Uranium, Insurgence et Reborn.
+Le générateur aléatoire déterministe (MT19937 compatible CRuby) est fourni dans
+`lib/rmxp/mt19937.rb` pour l'oracle.
 
 ## Installation
 

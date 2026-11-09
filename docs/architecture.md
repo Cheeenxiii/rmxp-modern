@@ -19,6 +19,9 @@ jeux puisse avoir ses formats sans contaminer le reste.
 | `lib/rmxp/codec.rb` | conversion Marshal ↔ arbre YAML, classes inconnues, références partagées |
 | `lib/rmxp/scripts.rb` | `Scripts.rxdata` ↔ un `.rb` par section, avec l'ordre et les identifiants |
 | `lib/rmxp/rgss.rb` | types RGSS à format Marshal propre (Table, Color, Tone, Rect, Font) |
+| `lib/rmxp/check.rb` | compilation statique des scripts et des fragments d'événements (Prism) |
+| `lib/rmxp/mt19937.rb` | MT19937 et conversions CRuby (`rand`, `rand(n)`, `rand(range)`, flottants) |
+| `lib/rmxp/preload/` | shim RNG et sonde de scénario chargés par mkxp-z |
 
 ## Représentation texte
 
@@ -60,6 +63,15 @@ reste fidèle, ils ne sont simplement pas lisibles.
 extrait chaque source en `.rb` et `scripts.yml` garde l'ordre et les identifiants.
 Pour les jeux à scripts externes (Reborn), `Scripts/` est copié sous
 `scripts_tree/` et recopié par le build ; `Scripts.rxdata` suit le chemin normal.
+
+## Déterminisme
+
+`mt19937.rb` reproduit le générateur de CRuby (bits bruts, `Kernel#rand`,
+`Random#rand`, plages entières et flottantes) : vérifié sur des millions de tirages
+contre CRuby. `preload/deterministic_random.rb` remplace `Kernel#rand`, `srand`,
+les méthodes de classe de `Random` et `sample`/`shuffle` dans mkxp-z.
+`preload/scenario.rb` mesure les frames et écrit un dump d'état ; il est chargé par
+`test/headless_test.rb` (mkxp-z sous Xvfb, `SRCDIR` = dossier du jeu).
 
 ## Ce qui n'est pas ici
 

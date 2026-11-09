@@ -21,6 +21,20 @@ conservé tel quel car son format binaire n'est pas décodé.
 Uranium et Insurgence sont lus depuis leur archive RGSSAD déchiffrée au préalable
 (`corpus/essentials/*/decrypted/`).
 
+## Compilation statique (`rmxp check`)
+
+| Jeu | Scripts | Fragments d'événements | Erreurs |
+|---|---|---|---|
+| Kit Essentials v21.1 | 402 | 1 112 | 0 |
+| Uranium 1.4.1 | 261 | 11 284 | 0 |
+| Reborn 19.5 | 194 | 17 726 | 0 |
+| Insurgence 1.2.7.1 | 215 | 17 578 | 3 |
+
+Les commandes 355/655 consécutives sont recollées avant le parsing, comme le fait
+l'interpréteur. Les 3 signalements d'Insurgence sont un `when` à l'ancienne syntaxe
+(`AudioUtilities`) et deux fragments d'événements invalides dans le jeu d'origine
+(dont une virgule finale `:SNOREBALL:`), pas des erreurs de reconstruction.
+
 ## Fichiers opaques connus
 
 Essentials v16.2/v17.2 utilisent un format `.dat` binaire maison (table d'offsets, pas du

@@ -53,6 +53,22 @@ Extrait, reconstruit et compare avec l'original, sans modifier le jeu. Le rappor
 
 Code de sortie non nul au premier écart.
 
+## Vérifier que le code compile
+
+```bash
+bin/rmxp check chemin/vers/le/jeu
+```
+
+Extrait le jeu, parse chaque script avec Prism et chaque fragment de script
+d'événement (les commandes 355/655 consécutives sont recollées comme le fait
+l'interpréteur). Rapport :
+
+```
+scripts: 402 (+0 erreur(s)), événements: 1112 fragment(s) (+0 erreur(s))
+```
+
+Code de sortie non nul s'il reste une erreur de syntaxe.
+
 ## Jeux en archive RGSSAD
 
 `rmxp` ne déchiffre pas les archives (ce n'est pas dans le périmètre du projet).

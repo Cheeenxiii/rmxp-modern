@@ -27,6 +27,15 @@ when "roundtrip"
   puts format("%-40s fichiers=%-4d octet=%d sémantique=%d opaque=%d scripts=%s",
               report["game"], report["files"], report["byte_identical"],
               report["semantic_identical"], report["opaque"], report["scripts"] == 1 ? "ok" : "KO")
+when "check"
+  game_dir = ARGV.shift
+  abort "usage: rmxp check JEU [TRAVAIL]" unless game_dir
+  work_dir = ARGV.shift || File.join("tmp", "check", slug(game_dir))
+  report = Rmxp::Check.new(game_dir, work_dir).run
+  puts "scripts: #{report.scripts} (+#{report.script_errors} erreur(s)), " \
+       "événements: #{report.events} fragment(s) (+#{report.event_errors} erreur(s))"
+  report.errors.each { |error| puts "  #{error}" }
+  exit(report.errors.empty? ? 0 : 1)
 when "help", nil
   puts <<~TEXT
     rmxp — aller-retour des données Pokémon Essentials
@@ -34,6 +43,7 @@ when "help", nil
       rmxp unpack JEU SORTIE      extrait Data/ et Scripts.rxdata en texte
       rmxp build PROJET SORTIE    reconstruit Data/ et Scripts.rxdata
       rmxp roundtrip JEU [TMP]    unpack + build + comparaison avec l'original
+      rmxp check JEU [TMP]        compilation statique des scripts et événements
   TEXT
 else
   abort "commande inconnue: #{command}"
