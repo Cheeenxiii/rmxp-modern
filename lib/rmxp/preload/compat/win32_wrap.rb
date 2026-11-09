@@ -257,6 +257,22 @@ module Win32API_Impl
 			end
 		end
 
+		class GetForegroundWindow
+			def call(_args)
+				return 1
+			end
+		end
+		class GetCurrentThreadId
+			def call(_args)
+				return 1
+			end
+		end
+		class GetWindowThreadProcessId
+			def call(args)
+				memcpy_string(args[1], [1].pack('l'))
+				return 1
+			end
+		end
 		class GetKeyState
 			def call(vkey)
 				return common_keystate(vkey[0])

@@ -72,8 +72,8 @@ Code de sortie non nul s'il reste une erreur de syntaxe.
 ## Migrer un jeu pré-v19
 
 `migrate` copie le jeu, externalise `Scripts.rxdata`, applique les transformations
-de compatibilité génériques (regex à échappements d'octets, `Thread.critical`,
-shims Win32API/Ruby 1.8) puis reconstruit les scripts. Le jeu source n'est pas modifié.
+de compatibilité génériques (regex à échappements d'octets, `when valeur:` de Ruby 1.8,
+`Thread.critical`, shims Win32API/Ruby 1.8) puis reconstruit les scripts. Le jeu source n'est pas modifié.
 
 ```bash
 bin/rmxp migrate JEU SORTIE

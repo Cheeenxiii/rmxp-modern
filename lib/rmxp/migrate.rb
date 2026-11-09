@@ -12,7 +12,7 @@ module Rmxp
     PRELOADS = %w[preload/win32_wrap.rb preload/ruby18_wrap.rb preload/ruby18_extra.rb
                   preload/mkxp_wrap.rb preload/add_stdlib.rb preload/power_cache.rb].freeze
 
-    Result = Struct.new(:scripts, :regexes, :dynamic_flags, :parse_errors, keyword_init: true)
+    Result = Struct.new(:scripts, :regexes, :dynamic_flags, :when_colons, :parse_errors, keyword_init: true)
 
     def initialize(game_dir, out_dir)
       @game_dir = File.expand_path(game_dir)
@@ -30,12 +30,14 @@ module Rmxp
 
       regexes = 0
       dynamic = 0
+      when_colons = 0
       parse_errors = 0
       Dir.glob(File.join(scripts_dir, "*.rb")).sort.each do |path|
         source = File.binread(path)
-        out, count, dyn, error = transform_source(source)
+        out, count, dyn, whens, error = transform_source(source)
         regexes += count
         dynamic += dyn
+        when_colons += whens
         parse_errors += 1 if error
         File.binwrite(path, out) unless out == source
       end
@@ -44,14 +46,24 @@ module Rmxp
       install_preloads
       ensure_game_ini
       Result.new(scripts: Dir.glob(File.join(scripts_dir, "*.rb")).length,
-                 regexes: regexes, dynamic_flags: dynamic, parse_errors: parse_errors)
+                 regexes: regexes, dynamic_flags: dynamic, when_colons: when_colons,
+                 parse_errors: parse_errors)
     end
 
     private
 
     def transform_source(source)
+      whens = 0
+      source = source.lines.map do |line|
+        replaced = line.sub(/^(\s*)when\s+((?:[^:\n]|:(?!:))+?):(?!:)([ \t]*)(.*)$/) do
+          whens += 1
+          "#{Regexp.last_match(1)}when #{Regexp.last_match(2)} then#{Regexp.last_match(3)}#{Regexp.last_match(4)}"
+        end
+        replaced
+      end.join
+
       result = Prism.parse(source)
-      return [source, 0, 0, true] unless result.value
+      return [source, 0, 0, whens, true] unless result.value
 
       replacements = []
       queue = [result.value]
@@ -89,7 +101,7 @@ module Rmxp
           dynamic += 1
         end
       end
-      [out, replacements.length, dynamic, false]
+      [out, replacements.length, dynamic, whens, false]
     end
 
     def byte_regex_replacement(node)
