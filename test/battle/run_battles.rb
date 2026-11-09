@@ -35,6 +35,11 @@ if ENV["RMXP_USE_LITERAL_DATA"]
 else
   GameData.load_all
 end
+
+if ENV["RMXP_HYBRID_SO"]
+  require File.expand_path(ENV["RMXP_HYBRID_SO"])
+  load File.join(__dir__, "hybrid_hooks.rb")
+end
 $game_switches = Array.new(2000, false)
 $game_variables = Array.new(2000, 0)
 $game_temp = Game_Temp.new

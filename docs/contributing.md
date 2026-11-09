@@ -43,6 +43,17 @@ ruby test/battle/gen_battle_data.rb
 RMXP_USE_LITERAL_DATA=1 RMXP_BATTLES=50 ruby test/battle/run_battles.rb
 ```
 
+Extension CRuby Spinel (hybride expérimental, noyau de dégâts) :
+
+```bash
+ruby test/battle/build_hybrid_extension.rb
+RMXP_USE_LITERAL_DATA=1 RMXP_SMALL_DATA=1 \
+  RMXP_HYBRID_SO=tmp/battle/hybrid/damage.so \
+  RMXP_BATTLES=1000 RMXP_SEED=42 ruby test/battle/run_battles.rb
+```
+
+Le journal doit rester identique à celui sans extension.
+
 Assemblage pour Spinel (à faire évoluer vers un sous-ensemble plus petit) :
 
 ```bash
