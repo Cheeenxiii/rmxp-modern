@@ -30,7 +30,10 @@
   the `.nro`'s RomFS, then in the first argument, then in the `.nro`'s folder,
   then in `sdmc:/switch/mkxp-z/game/`. `script/switch-build` builds a standalone
   `.nro` with the game inside the RomFS and the game's name and icon; the first
-  launch installs the game to the SD card because the RomFS is read-only.
+  launch installs the game to the SD card because the RomFS is read-only, with
+  an "Installing ..." progress screen and a version marker so later launches
+  skip the copy. MIDI is rendered to OGG at build time, so the port is not
+  silent on games that ship `.mid` music.
 - Standalone `.nro` builds of the kit, Reborn (with its game-side input shim)
   and Uranium reach their title/language screen under Eden. Remaining: A/B,
   naming and gameplay (synthetic keys did not reach the emulator's controller
@@ -59,10 +62,23 @@
 
 - On a real map: 3.66 ms per frame, 1.91 ms with the `System.power_state` cache
   that `migrate` installs.
-- Candidate transformations: avoid `map.data` per tile, avoid redrawing
-  unchanged content, cache text.
-- Uranium's language menu redraws everything every frame (diagnosed, no fix
-  decided).
+- Console probe (`script/switch-build --perf-probe`): `frames` is per 5 s
+  window (fps = frames / 5), `avg` is wall time inside `Graphics.update` with
+  the engine's waiting/vsync **included**, `cpu` is process CPU per frame (the
+  work measure), `worst` is wall. Compare PC and Switch on `cpu`, never `avg`.
+- PC to Switch factor: the first console session's `avg` (kit map 12-15 ms
+  against PC 3.7 ms) suggested 3-4x, but `avg` includes waiting; confirm the
+  factor with `cpu` from the second session and update this line.
+- Candidate transformations: avoid `map.data` per tile, cache text.
+- Anti-redraw: prototype measured (language screen 4.1 -> 0.5 ms of Ruby per
+  frame, oracle intact) but rejected for now: too much code for two screens
+  and the calibration does not need it. Idea noted for later: an engine-side
+  "bitmap changed" flag.
+- Uranium's 14 fps on the language screen is CPU-bound, not waiting: 4
+  `draw_text` shadow passes per string and 7 fresh `AnimatedBitmap` objects per
+  frame (PC 4-5 ms, console ~70 ms). It is a one-off setup screen; the title
+  runs at 40 fps. The real fix is the generic text/AnimatedBitmap cache
+  (milestone 7), validated on kit and Reborn, not a Switch timing hack.
 
 ## Packaging
 

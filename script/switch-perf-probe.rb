@@ -1,15 +1,23 @@
 # SPDX-FileCopyrightText: 2026 Cheeenxiii
 # SPDX-License-Identifier: MIT
 #
-# Test-only calibration probe: prints the time spent inside Graphics#update
-# (Ruby logic plus the frame's work) every few seconds, to stdout, which on
-# the Switch lands in mkxp-z.log. Added to console test builds only.
+# Test-only calibration probe. Every few seconds it prints:
+#   frames=        frames in the window -> fps = frames / 5 s
+#   avg=           wall time inside Graphics#update, *including* engine waits
+#                  and vsync, so it is not a work measure
+#   cpu=           process CPU time per frame over the window (all threads and
+#                  all work, including drawing outside Graphics#update), the
+#                  work measure to compare PC and Switch
+#   worst=         worst wall time inside Graphics#update
+#   scene=, map=   what was running
+# Added to console test builds only (script/switch-build --perf-probe).
 
 module RmxpPerf
   INTERVAL = 5.0
   @frames = 0
   @sum = 0.0
   @worst = 0.0
+  @last_cpu = Process.clock_gettime(Process::CLOCK_PROCESS_CPUTIME_ID)
   @last = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
   class << self
@@ -30,8 +38,11 @@ module RmxpPerf
       rescue StandardError
         "-"
       end
-      puts format("RMXP_PERF frames=%d avg=%.2fms worst=%.2fms scene=%s map=%s",
-                  @frames, @sum * 1000.0 / @frames, @worst * 1000.0, scene, map)
+      cpu_now = Process.clock_gettime(Process::CLOCK_PROCESS_CPUTIME_ID)
+      puts format("RMXP_PERF frames=%d fps=%.1f avg=%.2fms cpu=%.2fms worst=%.2fms scene=%s map=%s",
+                  @frames, @frames / (now - @last), @sum * 1000.0 / @frames,
+                  (cpu_now - @last_cpu) * 1000.0 / @frames, @worst * 1000.0, scene, map)
+      @last_cpu = cpu_now
       $stdout.flush if $stdout.respond_to?(:flush)
       @frames = 0
       @sum = 0.0
