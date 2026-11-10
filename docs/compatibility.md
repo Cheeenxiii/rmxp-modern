@@ -52,19 +52,25 @@ to boot on mkxp-z.
 
 Known limitations of the compatibility shims:
 
-- Windows-only native libraries are stubbed to 0: Uranium's `gif.dll`
-  animated pictures (its two GIF cutscenes lose their animation), Insurgence's
-  H-Mode7 maps (`MGC_Hmode7`), the Tolk/NVDA screen readers, and window
-  geometry calls (cosmetic).
+- Windows-only native libraries are stubbed to 0: Insurgence's H-Mode7 maps
+  (`MGC_Hmode7`), the Tolk/NVDA screen readers, and window geometry calls
+  (cosmetic). Uranium's GIF cutscenes are converted to PNG frames at migration
+  and no longer need `gif.dll`.
+- Insurgence's H-Mode7 plugin calls a 32-bit Windows DLL with internal RGSS
+  pointers, so it cannot work on mkxp-z: the 7 tagged maps render their normal
+  tilemap instead of the heightmap view. The intro fly-over (`System` starts on
+  map 214 and transfers to 689) and the world map (676) are among them.
+- Screen readers (Tolk for NVDA/SAPI, and the NVDA controller DLL) are not
+  implemented: the accessibility speech of Reborn and Insurgence is off.
 - Registry reads fall back to their defaults (music and sound stay on, the
   suggested trainer name is random); saves go to the game folder when the
   Windows known-folder API is missing.
 - Online features (GTS, trades, updates) need Windows sockets and are off.
 - `Thread.critical` is a no-op: the games use it around audio and bitmap
   caches only, and no visible race was seen.
-- Uranium's options screen is drawn at 640x480 while the game surface is
-  512x384, so its title and help text are clipped; the rest of the screen
-  matches warmwinter's reference port.
+- The games' `Win32API.SetWindowPos` calls are translated to mkxp-z's
+  `Graphics.resize_screen`, so the window and the drawing surface stay in
+  sync. Uranium's options screen and menus are no longer clipped.
 - A save written before the intro sets the player identity carries `metaID -1`
   and crashes the Continue screen. The game does this itself, not the
   migration; play through the intro (or use the debug mode) before saving.
@@ -100,12 +106,10 @@ off:
 - loading gems: scripts that call `gem` at startup keep going, but nothing is
   loaded.
 
-Reborn also needs `Input::E/F/D` and `Input::Controller.axes_trigger`, which
-come from a compatibility shim installed with the game rather than from the
-engine: the port binds ZL, ZR and minus to F5, F6 and F7 (the keys behind
-those names), but does not define the Ruby constants. `axes_trigger` returns
-zero, so trigger-based turbo is off; the ZL/ZR/minus bindings still reach the
-games.
+Reborn also needs `Input::E/F/D`: mkxp-z does not define those constants,
+and the port binds ZL, ZR and minus to the F5, F6 and F7 keys behind them.
+`Input::Controller.axes_trigger` is provided by mkxp-z itself, so the analog
+triggers keep working; only the constants come from a game-side shim.
 
 ## Dynamic Ruby
 

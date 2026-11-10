@@ -16,9 +16,8 @@
 ## Running games
 
 - Reborn boots on the desktop and under the Switch emulator (Eden). With our
-  own mkxp-z it needs the game-side input shim (`Input::E/F/D`,
-  `Controller.axes_trigger`); its updater needs `net/http` and openssl, so it
-  fails without blocking.
+  own mkxp-z it needs the game-side `Input::E/F/D` shim; its updater needs
+  `net/http` and openssl, so it fails without blocking.
 - The Uranium port (warmwinter) has no assets in its repository: they must be
   copied from the original release, and the port expects a `Patches/`
   directory. Automate this if Uranium builds need it.
@@ -27,24 +26,22 @@
 
 ## Switch
 
-- Merge the minimal port (patches on stock mkxp-z, CI builds the `.nro`) after
-  the owner's test. Hardware test and PC-to-Switch calibration are still to do.
-- The `.nro` needs to know the game folder: it uses the first argument or the
-  working directory. Eden starts homebrew in the SD root with neither, so a
-  direct launch under Eden exits before loading a game. Test with a forwarder,
-  or add a fallback (for example a game folder file next to the `.nro`).
-- Once the folder is known, the v21.1 kit reaches its title screen under Eden
-  and writes `mkxp-z.log`. A/B, naming and gameplay still need one interactive
-  test (the emulator harness used here could not inject keys into the game).
+- The minimal port branch (`switch-minimal-port`, pushed) now finds the game in
+  the `.nro`'s RomFS, then in the first argument, then in the `.nro`'s folder,
+  then in `sdmc:/switch/mkxp-z/game/`. `script/switch-build` builds a standalone
+  `.nro` with the game inside the RomFS and the game's name and icon; the first
+  launch installs the game to the SD card because the RomFS is read-only.
+- Remaining: retest the standalone `.nro` for the kit, Reborn and Uranium under
+  Eden (A/B, naming, gameplay), then the owner's hardware session and the
+  PC-to-Switch calibration. A/B/naming could not be checked with the emulator
+  harness used so far (synthetic keys did not reach the game).
 - Unsupported Win32API functions return 0. The visible losses are listed in
-  [docs/compatibility.md](docs/compatibility.md): Uranium's GIF cutscenes,
-  Insurgence's H-Mode7 maps, screen readers and window resizing.
-- `Input::Controller.axes_trigger` (Reborn) returns zero, so trigger-based
-  turbo is off; the ZL, ZR and minus bindings still reach the games as E, F
-  and D.
-- Reborn still needs its game-side `preload/input_ext.rb`: the engine patch
-  only binds ZL, ZR and minus to F5, F6 and F7, it does not define the Ruby
-  constants the game reads.
+  [docs/compatibility.md](docs/compatibility.md): Insurgence's H-Mode7 maps,
+  screen readers and window geometry calls; window resizing is translated to
+  `Graphics.resize_screen`.
+- Reborn still needs its game-side `preload/input_ext.rb` for `Input::E/F/D`
+  (the engine binds ZL, ZR and minus to F5/F6/F7 but does not define the Ruby
+  constants). `Input::Controller.axes_trigger` comes from mkxp-z itself.
 
 ## Native compilation
 
@@ -66,12 +63,21 @@
 - Uranium's language menu redraws everything every frame (diagnosed, no fix
   decided).
 
+## Packaging
+
+- `bin/rmxp package` builds ready-to-play Linux and Windows folders with
+  mkxp-z included. Linux was tested with Uranium; the Windows binary is a
+  pinned mkxp-z Actions artifact (`script/fetch-mkxp-z windows`) and still
+  needs a test on a Windows machine. Android, Web and Switch packages are not
+  written yet.
+
 ## Known gaps
 
 - The `Array#sample(n)` shim matches CRuby for n <= 10. Above that it falls
   back to a partial Fisher-Yates that may differ from CRuby. No known use in
   the games we target.
-- `gif.dll` (Uranium) and `MGC_Hmode7` (Insurgence) have no non-Windows
-  implementation.
-- Uranium's options screen is clipped: the game draws it at 640x480 while its
-  surface is 512x384.
+- `MGC_Hmode7` (Insurgence) has no non-Windows implementation. 7 of its 832
+  maps use it, including the intro fly-over (214 transfers to 689) and the world
+  map (676); those maps render as a flat tilemap instead of the heightmap view.
+  No pure-Ruby H-Mode7 exists; a partial Ruby mode-7 is a 1-2 week project.
+- Screen readers (Tolk/NVDA) are not implemented; see docs/compatibility.md.
