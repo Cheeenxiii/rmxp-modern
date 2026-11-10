@@ -63,7 +63,10 @@ module Rmxp
       "kernel32" => %w[GetCurrentThreadId],
       "user32" => %w[Keybd_event GetForegroundWindow GetWindowThreadProcessId GetKeyState
                      GetAsyncKeyState GetKeyboardState ShowCursor GetCursorPos GetClientRect
-                     ScreenToClient FindWindowA SetWindowPos],
+                     ScreenToClient FindWindowA FindWindowEx GetWindowRect SetWindowPos],
+      "xinput1_3" => %w[XInputGetState],
+      "xinput1_4" => %w[XInputGetState],
+      "xinput9_1_0" => %w[XInputGetState],
     }.freeze
 
     # Key used in the Win32API report when the arguments aren't literals.

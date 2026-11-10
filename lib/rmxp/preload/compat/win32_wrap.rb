@@ -166,12 +166,16 @@ module Scancodes
 end
 
 $win32KeyStates = nil
+$win32AsyncWasDown = {}
 
 # Some games (Uranium, Insurgence) replace Input.update and read
 # GetAsyncKeyState. Keep the native update to refresh the raw key states.
 module Input
 	class << self
 		alias_method(:__win32wrap_native_update, :update) unless method_defined?(:__win32wrap_native_update)
+		# Keep a handle on the engine's own press?, which games may replace,
+		# for the mouse buttons GetAsyncKeyState can ask about.
+		alias_method(:__win32wrap_native_press?, :press?) unless method_defined?(:__win32wrap_native_press?)
 	end
 end
 
@@ -191,10 +195,19 @@ end
 
 def get_raw_keystates
 	if $win32KeyStates == nil
-		$win32KeyStates = Input.raw_key_states
+		$win32KeyStates = Input.respond_to?(:raw_key_states) ? Input.raw_key_states : []
 	end
 
 	return $win32KeyStates
+end
+
+# The engine's Input.press?, not the game's replacement.
+def win32_mouse_down?(constant)
+	return false unless Input.const_defined?(constant)
+	return false unless Input.respond_to?(:__win32wrap_native_press?)
+	Input.send(:__win32wrap_native_press?, Input.const_get(constant))
+rescue StandardError
+	false
 end
 
 def common_keystate(vkey)
@@ -203,17 +216,17 @@ def common_keystate(vkey)
 	states = get_raw_keystates
 	pressed = false
 
-	if vkey == :LBUTTON
-		pressed = Input.press?(Input::MOUSELEFT)
-	elsif vkey == :RBUTTON
-		pressed = Input.press?(Input::MOUSERIGHT)
-	elsif vkey == :MBUTTON
-		pressed = Input.press?(Input::MOUSEMIDDLE)
-	elsif vkey == :SHIFT
+	if vkey == Scancodes::WIN32[:LBUTTON]
+		pressed = win32_mouse_down?(:MOUSELEFT)
+	elsif vkey == Scancodes::WIN32[:RBUTTON]
+		pressed = win32_mouse_down?(:MOUSERIGHT)
+	elsif vkey == Scancodes::WIN32[:MBUTTON]
+		pressed = win32_mouse_down?(:MOUSEMIDDLE)
+	elsif vkey == Scancodes::WIN32[:SHIFT]
 		pressed = double_state(states, :LSHIFT, :RSHIFT)
-	elsif vkey == :MENU
+	elsif vkey == Scancodes::WIN32[:MENU]
 		pressed = double_state(states, :LALT, :RALT)
-	elsif vkey == :CONTROL
+	elsif vkey == Scancodes::WIN32[:CONTROL]
 		pressed = double_state(states, :LCTRL, :RCTRL)
 	else
 		scan = nil
@@ -245,7 +258,133 @@ def double_state(states, left, right)
 	return state_pressed(states, left) || state_pressed(states, right)
 end
 
+# XInput answered from the engine's controller state. SDL and XInput number
+# their buttons and axes differently, so everything is translated here; no
+# knowledge of any particular game is involved.
+module Win32XInput
+	ERROR_SUCCESS = 0
+	ERROR_DEVICE_NOT_CONNECTED = 1167
+
+	# SDL controller button => XINPUT_GAMEPAD_* bit.
+	BUTTONS = [
+		[0, 0x1000],  # A
+		[1, 0x2000],  # B
+		[2, 0x4000],  # X
+		[3, 0x8000],  # Y
+		[4, 0x0020],  # BACK
+		[6, 0x0010],  # START
+		[7, 0x0040],  # left thumb
+		[8, 0x0080],  # right thumb
+		[9, 0x0100],  # left shoulder
+		[10, 0x0200], # right shoulder
+		[11, 0x0001], # D-pad up
+		[12, 0x0002], # D-pad down
+		[13, 0x0004], # D-pad left
+		[14, 0x0008], # D-pad right
+	]
+
+	# SDL controller axis index.
+	AXIS_LEFT_X = 0
+	AXIS_LEFT_Y = 1
+	AXIS_RIGHT_X = 2
+	AXIS_RIGHT_Y = 3
+	AXIS_TRIGGER_LEFT = 4
+	AXIS_TRIGGER_RIGHT = 5
+
+	@packet = 0
+	@last_state = nil
+
+	def self.connected?
+		return false unless defined?(Input::Controller)
+		return false unless Input::Controller.respond_to?(:connected?)
+		return Input::Controller.connected?
+	rescue StandardError
+		false
+	end
+
+	def self.trigger_byte(value)
+		value = (value.to_f * 255.0).round
+		return 0 if value < 0
+		return 255 if value > 255
+		return value
+	end
+
+	# SDL Y axes grow downwards, XInput's grow upwards.
+	def self.thumb_value(value)
+		value = (value.to_f * 32767.0).round
+		return -32768 if value < -32768
+		return 32767 if value > 32767
+		return value
+	end
+
+	# [wButtons, bLeftTrigger, bRightTrigger, sThumbLX..sThumbRY],
+	# or nil when no controller is attached / the engine can't report one.
+	def self.read_state
+		return nil unless connected?
+		buttons = Input::Controller.raw_button_states
+		axes = Input::Controller.raw_axes
+		return nil unless buttons.is_a?(Array) && axes.is_a?(Array)
+		return nil if axes.length <= AXIS_TRIGGER_RIGHT
+
+		mask = 0
+		BUTTONS.each { |index, bit| mask |= bit if buttons[index] }
+
+		return [mask,
+			trigger_byte(axes[AXIS_TRIGGER_LEFT]),
+			trigger_byte(axes[AXIS_TRIGGER_RIGHT]),
+			thumb_value(axes[AXIS_LEFT_X]),
+			thumb_value(-axes[AXIS_LEFT_Y]),
+			thumb_value(axes[AXIS_RIGHT_X]),
+			thumb_value(-axes[AXIS_RIGHT_Y])]
+	rescue StandardError
+		nil
+	end
+
+	# Windows bumps dwPacketNumber whenever the state changes; XInput users
+	# compare it to decide whether to reread the pad.
+	def self.packet(state)
+		if state != @last_state
+			@last_state = state
+			@packet = (@packet + 1) & 0xFFFFFFFF
+			@packet = 1 if @packet == 0
+		end
+		return @packet
+	end
+
+	def self.pack_state(packet, state)
+		return ([packet] + state).pack('LSCCssss')
+	end
+end
+
 module Win32API_Impl
+	# real: XInputGetState from the engine's controller. XINPUT1_3 is what
+	# older games (and Uranium) load; the other names are the same API.
+	module XINPUT1_3
+		class XInputGetState
+			def call(args)
+				index = args[0].to_i
+				return Win32XInput::ERROR_DEVICE_NOT_CONNECTED unless index == 0
+
+				state = Win32XInput.read_state
+				return Win32XInput::ERROR_DEVICE_NOT_CONNECTED if state == nil
+
+				out = args[1]
+				if out.is_a?(String)
+					packed = Win32XInput.pack_state(Win32XInput.packet(state), state)
+					memcpy_string(out, packed) if out.bytesize >= packed.bytesize
+				end
+				return Win32XInput::ERROR_SUCCESS
+			end
+		end
+	end
+	XINPUT1_4 = XINPUT1_3
+	XINPUT9_1_0 = XINPUT1_3
+	# The wrapper only upcases the first letter of a DLL name, so also accept
+	# the lower-case spellings some games use.
+	Xinput1_3 = XINPUT1_3
+	Xinput1_4 = XINPUT1_4
+	Xinput9_1_0 = XINPUT9_1_0
+
 	module Kernel32
 		class GetCurrentThreadId
 			# real: returns the same id as GetWindowThreadProcessId below, so
@@ -304,15 +443,24 @@ module Win32API_Impl
 		end
 		class GetKeyState
 			# real: state of the key, from the raw key states of the engine.
-			def call(vkey)
-				return common_keystate(vkey[0])
-			end
-		end
-		class GetAsyncKeyState
-			# real: same, with the high bit Windows uses for "down".
+			# The high bit is set while the key is down, as on Windows.
 			PRESSED_BIT = (1 << 15)
 			def call(vkey)
 				return common_keystate(vkey[0]) == 1 ? PRESSED_BIT : 0
+			end
+		end
+		class GetAsyncKeyState
+			# real: state of the key, with the high bit Windows uses for
+			# "down" and the low bit for "pressed since the last call".
+			PRESSED_BIT = (1 << 15)
+			EDGE_BIT = 1
+			def call(vkey)
+				key = vkey[0]
+				down = common_keystate(key) == 1
+				was_down = $win32AsyncWasDown[key]
+				$win32AsyncWasDown[key] = down
+				return 0 unless down
+				return PRESSED_BIT | (was_down ? 0 : EDGE_BIT)
 			end
 		end
 		class GetKeyboardState
@@ -320,8 +468,17 @@ module Win32API_Impl
 			PRESSED_BIT = 0x80
 			def call(args)
 				out_states = args[0]
+				return 0 unless out_states.is_a?(String)
+
+				# Windows fills the whole 256-byte buffer.
+				i = 0
+				while i < out_states.bytesize
+					out_states.setbyte(i, 0)
+					i += 1
+				end
 
 				Scancodes::WIN32.each do |name, val|
+					next if val >= out_states.bytesize
 					pressed = common_keystate(val) == 1
 
 					out_states.setbyte(val, pressed ? PRESSED_BIT : 0)
