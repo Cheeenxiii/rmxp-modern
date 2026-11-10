@@ -27,7 +27,7 @@ be sent upstream as is.
 
 The Ruby files in `mkxp-z-switch/` carry their own license header:
 
-- our stubs (`stdlib_*_stub.rb`, `switch_paths.rb`) are MIT;
+- our stubs (`stdlib_*_stub.rb`, `switch_paths.rb`, `stdout_sync.rb`) are MIT;
 - `win32api_stub.rb` comes from GQster's port and is GPL-2.0-or-later;
 - `win32_wrap.rb` comes from mkxp and is CC0;
 - `stdlib_delegate.rb`, `stdlib_timeout.rb` and `stdlib_weakref.rb` are copies
