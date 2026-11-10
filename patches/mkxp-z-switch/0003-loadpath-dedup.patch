@@ -1,5 +1,5 @@
 diff --git a/src/main.cpp b/src/main.cpp
-index f4500d9..565725c 100644
+index f4500d9..ae86088 100644
 --- a/src/main.cpp
 +++ b/src/main.cpp
 @@ -35,6 +35,7 @@
@@ -10,7 +10,7 @@ index f4500d9..565725c 100644
  #include <string>
  #include <unistd.h>
  
-@@ -317,18 +318,44 @@ int main(int argc, char *argv[]) {
+@@ -317,18 +318,45 @@ int main(int argc, char *argv[]) {
  
  #ifdef __SWITCH__
      // No MiniFFI on Switch: Ruby stand-ins from RomFS (switch/romfs-root/
@@ -54,6 +54,7 @@ index f4500d9..565725c 100644
 +    addSwitchPreload("romfs:/preload/stdlib_weakref.rb");
 +    addSwitchPreload("romfs:/preload/stdlib_rubygems_stub.rb");
 +    addSwitchPreload("romfs:/preload/stdlib_net_http_stub.rb");
++    addSwitchPreload("romfs:/preload/stdlib_discord_stub.rb");
 +    addSwitchPreload("romfs:/preload/log_sync.rb");
 +    addSwitchPreload("romfs:/preload/win32api_stub.rb");
 +    addSwitchPreload("romfs:/preload/win32_wrap.rb");
