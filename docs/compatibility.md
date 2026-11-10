@@ -68,9 +68,10 @@ Known limitations of the compatibility shims:
 - Online features (GTS, trades, updates) need Windows sockets and are off.
 - `Thread.critical` is a no-op: the games use it around audio and bitmap
   caches only, and no visible race was seen.
-- The games' `Win32API.SetWindowPos` calls are translated to mkxp-z's
-  `Graphics.resize_screen`, so the window and the drawing surface stay in
-  sync. Uranium's options screen and menus are no longer clipped.
+- The games' `Win32API.SetWindowPos` calls are translated to the engine's
+  resize method, but Uranium's options screen is still clipped: the game resizes
+  its own surface to 512x384 while the options screen draws at 640x480. The
+  rest of the menus render correctly.
 - A save written before the intro sets the player identity carries `metaID -1`
   and crashes the Continue screen. The game does this itself, not the
   migration; play through the intro (or use the debug mode) before saving.

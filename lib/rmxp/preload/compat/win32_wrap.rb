@@ -397,9 +397,9 @@ module Win32API_Impl
 		end
 
 		class SetWindowPos
-			# real: old Essentials resize the window with SetWindowPos. The games
+			# real: old Essentials resize the window with SetWindowPos. They
 			# replace Graphics.resize_screen with their own scaling wrapper, so
-			# call the engine method they kept as oldresizescreen; it resizes the
+			# call the engine method they keep as oldresizescreen; it resizes the
 			# window and the drawing surface together.
 			def call(args)
 				width = args[4].to_i
