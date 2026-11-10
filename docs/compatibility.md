@@ -38,7 +38,8 @@ Audit du Ruby dynamique (détail reproductible avec `bin/rmxp audit JEU`) :
 (syntaxe 1.8 → 3, regex à octets, `when valeur:`, `break`/`next` hors boucle,
 shims Win32API/Ruby 1.8) puis reconstruit les scripts :
 
-- **Uranium** : sélection de langue, titre et options atteints sur mkxp-z standard ;
+- **Uranium** : sélection de langue, titre, options, nouvelle partie et **première
+  carte** atteints sur mkxp-z standard ;
 - **Insurgence** : titre, menu, nouvelle partie, intro et **première carte** rendue,
   sans correctif spécifique au jeu. Au premier lancement d'une copie fraîche,
   Essentials v16 propose d'installer ses polices ; c'est cosmétique après redémarrage.
