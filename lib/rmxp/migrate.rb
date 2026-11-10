@@ -214,13 +214,23 @@ module Rmxp
     def append_string_input_compat(scripts_dir)
       file = "9999_rmxp_string_input.rb"
       File.write(File.join(scripts_dir, file), <<~RUBY)
-        # Ruby 1.8 : IO#getc renvoyait un octet ; Ruby 3 renvoie un String.
-        if defined?(StringInput) && StringInput.ancestors.include?(IO)
+        # Ruby 1.8 : String#[] / IO#getc renvoyaient un octet ; Ruby 3 renvoie
+        # un String. Couvre les deux familles de StringInput (IO ou classe
+        # autonome avec @string/@pos).
+        if defined?(StringInput)
           class StringInput
             def getc
-              return nil if eof?
-              byte = read(1)
-              byte && byte.getbyte(0)
+              if instance_variable_defined?(:@string) && @string
+                return nil if eof?
+                ch = @string[@pos]
+                @pos += 1
+                @pos += 1 if @pos == @string.size
+                ch.is_a?(String) ? ch.getbyte(0) : ch
+              else
+                return nil if eof?
+                byte = read(1)
+                byte && byte.getbyte(0)
+              end
             end
           end
         end
