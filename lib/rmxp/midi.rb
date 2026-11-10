@@ -30,7 +30,13 @@ module Rmxp
         return 0
       end
 
-      midis.count { |midi| convert_one(dir, midi, soundfont, renderer) }
+      midis.count do |midi|
+        ogg = midi.sub(/\.midi?\z/i, ".ogg")
+        # A previous conversion (console build, package) is reused.
+        next true if File.file?(ogg) && File.mtime(ogg) >= File.mtime(midi)
+
+        convert_one(dir, midi, soundfont, renderer)
+      end
     end
 
     def find_soundfont(dir)

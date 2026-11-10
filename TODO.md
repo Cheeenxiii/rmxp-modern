@@ -64,11 +64,14 @@
   that `migrate` installs.
 - Console probe (`script/switch-build --perf-probe`): `frames` is per 5 s
   window (fps = frames / 5), `avg` is wall time inside `Graphics.update` with
-  the engine's waiting/vsync **included**, `cpu` is process CPU per frame (the
-  work measure), `worst` is wall. Compare PC and Switch on `cpu`, never `avg`.
+  the engine's waiting/vsync **included**, `worst` is wall, and `cpu` is
+  process CPU per frame on PC (the work measure). The Switch Ruby has no
+  process CPU clock (querying it is a fatal `[BUG]` under libnx), so `cpu=na`
+  there: use fps per scene, and `avg` only where the limiter cannot hide the
+  cost.
 - PC to Switch factor: the first console session's `avg` (kit map 12-15 ms
-  against PC 3.7 ms) suggested 3-4x, but `avg` includes waiting; confirm the
-  factor with `cpu` from the second session and update this line.
+  against PC 3.7 ms) suggested 3-4x; `avg` includes waiting so this stays an
+  order of magnitude, not a calibrated number.
 - Candidate transformations: avoid `map.data` per tile, cache text.
 - Anti-redraw: prototype measured (language screen 4.1 -> 0.5 ms of Ruby per
   frame, oracle intact) but rejected for now: too much code for two screens
