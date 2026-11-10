@@ -1,4 +1,6 @@
 corpus/
-vendor/
+vendor/*
+!vendor/mkxp-z
+!vendor/mkxp-z-switch
 .recon/
 tmp/

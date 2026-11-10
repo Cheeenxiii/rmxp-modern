@@ -3,8 +3,13 @@
 Changes to [mkxp-z](https://github.com/mkxp-z/mkxp-z) needed to run converted
 games.
 
-- `mkxp-z/`: patches for the desktop build.
-- `mkxp-z-switch/`: patches and preload scripts for the Nintendo Switch port.
+- `mkxp-z/`: patches for the desktop build, on top of `vendor/mkxp-z`.
+- `mkxp-z-switch/`: patches and preload scripts for the Nintendo Switch port,
+  on top of `vendor/mkxp-z-switch`.
+
+`script/setup` applies them in order; see [docs/setup.md](../docs/setup.md).
+Each series must apply cleanly to the commit its submodule is pinned to: when
+you move a submodule, check `script/setup` still works.
 
 ## License
 

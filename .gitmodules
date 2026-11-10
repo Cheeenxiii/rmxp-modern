@@ -1,0 +1,9 @@
+[submodule "vendor/mkxp-z"]
+	path = vendor/mkxp-z
+	url = https://github.com/mkxp-z/mkxp-z.git
+	ignore = dirty
+[submodule "vendor/mkxp-z-switch"]
+	path = vendor/mkxp-z-switch
+	url = https://github.com/GQster/mkxp-zSwitchPort.git
+	branch = switch-port
+	ignore = dirty

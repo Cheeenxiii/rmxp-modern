@@ -25,8 +25,8 @@ ruby test/migrate_test.rb    # migrate's source transformations
 `test/headless_test.rb` runs a game in mkxp-z under Xvfb, with the
 deterministic RNG and a probe that measures frames and writes a state dump.
 Two runs with the same seed must produce the same dump. It needs an mkxp-z
-binary (`MKXP_BIN`, default `vendor/mkxp-z/build/mkxp-z.x86_64`) and
-`xvfb-run`.
+binary (`MKXP_BIN`, default `vendor/mkxp-z/build/mkxp-z.x86_64`, see
+[setup.md](setup.md)) and `xvfb-run`.
 
 ```bash
 ruby test/headless_test.rb GAME REBUILT_DATA [SECONDS] [SEED]

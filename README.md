@@ -78,6 +78,9 @@ Other commands: `roundtrip` (unpack, build and compare with the original),
 `check`, `audit` and `migrate`. See [docs/usage.md](docs/usage.md) for details
 and [docs/compatibility.md](docs/compatibility.md) for per-game results.
 
+To run games, you need a patched mkxp-z, for the desktop or the Switch:
+[docs/setup.md](docs/setup.md) explains how to build it.
+
 ## License
 
 The tool is licensed under the [GNU GPL v3 or later](LICENSE).
