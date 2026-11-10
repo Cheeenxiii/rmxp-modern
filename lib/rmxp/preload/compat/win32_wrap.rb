@@ -371,6 +371,54 @@ module Win32API_Impl
 			end
 		end
 
+		class GetWindowRect
+			# real: the game window has no decoration we can see from here, so
+			# its rect is the whole drawing surface.
+			def call(args)
+				return 0 unless args[0] == 42
+				rect = [0, 0, 640, 480]
+				begin
+					rect[2] = Graphics.width
+					rect[3] = Graphics.height
+				rescue StandardError
+				end
+				memcpy_string(args[1], rect.pack('l4'))
+				1
+			end
+		end
+
+		class FindWindowEx
+			# real: the games iterate windows with FindWindowEx to find the
+			# RGSS player; a pseudo handle for the game window is enough.
+			def call(args)
+				return 42 if args[2].to_s == "RGSS Player"
+				0
+			end
+		end
+
+		class SetWindowPos
+			# real: old Essentials resize the window with SetWindowPos. The games
+			# replace Graphics.resize_screen with their own scaling wrapper, so
+			# call the engine method they kept as oldresizescreen; it resizes the
+			# window and the drawing surface together.
+			def call(args)
+				width = args[4].to_i
+				height = args[5].to_i
+				return 0 unless width.positive? && height.positive?
+				if Graphics.respond_to?(:oldresizescreen)
+					Graphics.oldresizescreen(width, height)
+					return 1
+				end
+				if Graphics.respond_to?(:resize_screen)
+					Graphics.resize_screen(width, height)
+					return 1
+				end
+				0
+			rescue StandardError
+				0
+			end
+		end
+
 		class ScreenToClient
 			# neutral: there is no window decoration to subtract, so leaving
 			# the coordinates alone is the correct behaviour.

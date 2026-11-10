@@ -43,7 +43,6 @@ module Rmxp
       ["Marshal.dump encoding and Time rewrite", :real, /Marshal\.dump/],
       ["Thread.critical", :disabled, /\bThread\.critical\b/],
       ["Input::E / F / D", :real, /\bInput::[EFD]\b/],
-      ["Input::Controller.axes_trigger", :disabled, /\baxes_trigger\b/],
       ["Renamed mkxp API (MKXP.*)", :real, /\bMKXP\.(?:data_directory|puts|raw_key_states|mouse_in_window)\b/],
       ["System.power_state cache", :real, /\bSystem\.power_state\b/],
       ["Ruby 1.8 StringInput#getc (class present)", :real, /\bStringInput\b/],
@@ -64,7 +63,7 @@ module Rmxp
       "kernel32" => %w[GetCurrentThreadId],
       "user32" => %w[Keybd_event GetForegroundWindow GetWindowThreadProcessId GetKeyState
                      GetAsyncKeyState GetKeyboardState ShowCursor GetCursorPos GetClientRect
-                     ScreenToClient FindWindowA],
+                     ScreenToClient FindWindowA SetWindowPos],
     }.freeze
 
     # Key used in the Win32API report when the arguments aren't literals.
