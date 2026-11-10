@@ -1,5 +1,5 @@
-# Reborn utilise des constantes Input et Controller absentes du binding du port
-# Switch. On fournit des touches neutres et un axe déclencheur nul.
+# Constantes Input absentes de certains moteurs (Reborn, bindings Switch).
+# Shim générique installé par migrate ; aucune dépendance à un jeu précis.
 module Input
   E = F5 unless const_defined?(:E)
   F = F6 unless const_defined?(:F)

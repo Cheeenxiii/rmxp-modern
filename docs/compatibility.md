@@ -54,9 +54,22 @@ sans mesure de fps représentative :
   Controls), 40 fps sous émulateur ;
 - Uranium (port warmwinter) : sélection de langue.
 
-Le Ruby du port Switch n'embarque pas toute la stdlib : `timeout`, `weakref`,
-`delegate`, RubyGems, `net/http` et la gem Discord sont fournis par les préloads
-du port, sinon Reborn s'arrête au chargement de ses scripts.
+Le Ruby du port Switch n'embarque pas toute la stdlib : `timeout`, `weakref` et
+`delegate` sont fournis par les préloads du port. RubyGems, `net/http` et la gem
+Discord sont remplacés par des stubs : les fonctions qui en dépendent sont
+désactivées (voir ci-dessous).
+
+### Limitations Switch connues
+
+- **Mises à jour en ligne / vérification de version** : désactivées (`net/http` stub) ;
+  Reborn affiche une erreur `URI` non bloquante dans l'Updater.
+- **GTS, échanges et fonctions en ligne** : indisponibles tant que `net/http` et
+  les sockets ne sont pas fournis.
+- **Discord Rich Presence** : désactivée (stub `discord`).
+- **Gems Ruby** : chargement désactivé (stub RubyGems) ; les scripts qui appellent
+  `gem` au démarrage continuent, mais les gems ne sont pas chargées.
+- **Reborn** : `Input::E/F/D` et `Controller.axes_trigger` viennent d'un shim de
+  compatibilité installé avec le jeu, plus du moteur.
 
 ## Fichiers opaques connus
 

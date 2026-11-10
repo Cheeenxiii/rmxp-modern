@@ -11,7 +11,7 @@ module Rmxp
     FLAGS = { "i" => "Regexp::IGNORECASE", "m" => "Regexp::MULTILINE", "x" => "Regexp::EXTENDED" }.freeze
     COMPAT = File.expand_path("preload/compat", __dir__)
     PRELOADS = %w[preload/win32_wrap.rb preload/ruby18_wrap.rb preload/ruby18_extra.rb
-                  preload/mkxp_wrap.rb preload/add_stdlib.rb preload/power_cache.rb preload/tmp_env.rb preload/errno_dir.rb].freeze
+                  preload/mkxp_wrap.rb preload/add_stdlib.rb preload/power_cache.rb preload/tmp_env.rb preload/errno_dir.rb preload/input_ext.rb].freeze
 
     Result = Struct.new(:scripts, :regexes, :dynamic_flags, :when_colons, :break_fixes,
                         :read_bytes, :parse_errors, keyword_init: true)
