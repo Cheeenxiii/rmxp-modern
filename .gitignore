@@ -4,3 +4,5 @@ vendor/*
 !vendor/mkxp-z-switch
 .recon/
 tmp/
+AGENTS.md
+CLAUDE.md
