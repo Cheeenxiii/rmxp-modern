@@ -1,0 +1,33 @@
+# Writes stdout and stderr to mkxp-z.log next to the .nro, overwritten at each launch.
+
+diff --git a/src/main.cpp b/src/main.cpp
+index dc7007d2..28c44ff4 100644
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -34,6 +34,7 @@
+ #include <SDL_ttf.h>
+ 
+ #include <cassert>
++#include <cstdio>
+ #include <cstring>
+ #include <vector>
+ #include <string>
+@@ -253,6 +254,18 @@ static SDL_Window *initVideo(const Config &conf) {
+ }
+ 
+ int main(int argc, char *argv[]) {
++#ifdef __SWITCH__
++    // Log to mkxp-z.log next to the .nro, unbuffered so that a crash keeps
++    // everything written before it
++    if (argc > 0 && std::strrchr(argv[0], '/')) {
++      std::string log(argv[0], std::strrchr(argv[0], '/') + 1);
++      if (std::freopen((log + "mkxp-z.log").c_str(), "w", stdout)) {
++        dup2(fileno(stdout), STDERR_FILENO);
++        std::setvbuf(stdout, nullptr, _IONBF, 0);
++        std::setvbuf(stderr, nullptr, _IONBF, 0);
++      }
++    }
++#endif
+     SDL_SetHint(SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS, "0");
+     SDL_SetHint(SDL_HINT_ACCELEROMETER_AS_JOYSTICK, "0");
+ 
