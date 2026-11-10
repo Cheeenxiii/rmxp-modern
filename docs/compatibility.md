@@ -50,9 +50,13 @@ Le port Switch est vérifié sous Eden (Vulkan/lavapipe), sans carte physique et
 sans mesure de fps représentative :
 
 - kit v21.1 reconstruit et kit original : écran titre, menu, carte de départ ;
-- Uranium (port warmwinter) : sélection de langue ;
-- Reborn : bloqué par la stdlib Ruby du build du port (`timeout` puis `rubygems`,
-  `net/http`) ; la correction se poursuit côté port, pas côté jeu.
+- Reborn : écran titre puis menu (New Game/Other Save Files/Options/Save Directory/
+  Controls), 40 fps sous émulateur ;
+- Uranium (port warmwinter) : sélection de langue.
+
+Le Ruby du port Switch n'embarque pas toute la stdlib : `timeout`, `weakref`,
+`delegate`, RubyGems, `net/http` et la gem Discord sont fournis par les préloads
+du port, sinon Reborn s'arrête au chargement de ses scripts.
 
 ## Fichiers opaques connus
 
