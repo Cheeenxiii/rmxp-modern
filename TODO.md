@@ -31,10 +31,11 @@
   then in `sdmc:/switch/mkxp-z/game/`. `script/switch-build` builds a standalone
   `.nro` with the game inside the RomFS and the game's name and icon; the first
   launch installs the game to the SD card because the RomFS is read-only.
-- Remaining: retest the standalone `.nro` for the kit, Reborn and Uranium under
-  Eden (A/B, naming, gameplay), then the owner's hardware session and the
-  PC-to-Switch calibration. A/B/naming could not be checked with the emulator
-  harness used so far (synthetic keys did not reach the game).
+- Standalone `.nro` builds of the kit, Reborn (with its game-side input shim)
+  and Uranium reach their title/language screen under Eden. Remaining: A/B,
+  naming and gameplay (synthetic keys did not reach the emulator's controller
+  layer in the harness), then the owner's hardware session and the
+  PC-to-Switch calibration.
 - Unsupported Win32API functions return 0. The visible losses are listed in
   [docs/compatibility.md](docs/compatibility.md): Insurgence's H-Mode7 maps,
   screen readers and window geometry calls; window resizing is translated to
