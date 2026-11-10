@@ -60,5 +60,8 @@ apply_patches "$mkxpz" "$root"/patches/mkxp-z/*.patch "$root"/patches/mkxp-z-swi
 
 mkdir -p "$mkxpz/switch/romfs-root/preload"
 cp "$root"/patches/mkxp-z-switch/*.rb "$mkxpz/switch/romfs-root/preload/"
+# One source for the net/http + URI Shim Reborn needs: the game-side compat
+# file, also copied into the console build's RomFS preloads.
+cp "$root/lib/rmxp/preload/compat/stdlib_net_http_stub.rb" "$mkxpz/switch/romfs-root/preload/"
 
 echo "Done. See docs/setup.md to build."
