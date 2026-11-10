@@ -1,0 +1,14 @@
+diff --git a/switch/switch_main.cpp b/switch/switch_main.cpp
+index 7338bdf9..36dc45e7 100644
+--- a/switch/switch_main.cpp
++++ b/switch/switch_main.cpp
+@@ -8,4 +8,9 @@
+ 
+ extern "C" void userAppInit(void) { romfsInit(); }
+ extern "C" void userAppExit(void) { romfsExit(); }
++
++// libnx only weakly references userAppInit, so the linker drops this whole
++// translation unit from libmkxp-z.a; main() calls this to keep it, and with it
++// the RomFS mount, in the binary.
++extern "C" void switchPlatformWasLinked(void) {}
+ #endif

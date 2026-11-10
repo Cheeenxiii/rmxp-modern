@@ -1,8 +1,8 @@
 diff --git a/src/main.cpp b/src/main.cpp
-index 87c6536a..057f19c6 100644
+index 87c6536a..4c0ef59d 100644
 --- a/src/main.cpp
 +++ b/src/main.cpp
-@@ -40,6 +40,11 @@
+@@ -40,6 +40,15 @@
  #include <string>
  #include <unistd.h>
  
@@ -11,10 +11,14 @@ index 87c6536a..057f19c6 100644
 +#include <sys/stat.h>
 +#endif
 +
++#ifdef __SWITCH__
++extern "C" void switchPlatformWasLinked(void);
++#endif
++
  #include "binding.h"
  #include "sharedstate.h"
  #include "eventthread.h"
-@@ -253,6 +258,143 @@ static SDL_Window *initVideo(const Config &conf) {
+@@ -253,7 +262,149 @@ static SDL_Window *initVideo(const Config &conf) {
    return window;
  }
  
@@ -59,7 +63,9 @@ index 87c6536a..057f19c6 100644
 +      continue;
 +    std::string from = src + "/" + name;
 +    std::string to = dst + "/" + name;
-+    if (entry->d_type == DT_DIR) {
++    struct stat info;
++    bool is_dir = stat(from.c_str(), &info) == 0 && S_ISDIR(info.st_mode);
++    if (is_dir) {
 +      ok = switchCopyTree(from, to) && ok;
 +      continue;
 +    }
@@ -156,9 +162,13 @@ index 87c6536a..057f19c6 100644
 +#endif
 +
  int main(int argc, char *argv[]) {
++#ifdef __SWITCH__
++    switchPlatformWasLinked();
++#endif
      SDL_SetHint(SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS, "0");
      SDL_SetHint(SDL_HINT_ACCELEROMETER_AS_JOYSTICK, "0");
-@@ -281,14 +423,7 @@ int main(int argc, char *argv[]) {
+ 
+@@ -281,14 +432,7 @@ int main(int argc, char *argv[]) {
      }
  #endif
  #ifdef __SWITCH__
@@ -174,7 +184,7 @@ index 87c6536a..057f19c6 100644
  #endif
      if (!dataDir[0]) {
        std::strncpy(dataDir, mkxp_fs::getDefaultGameRoot().c_str(), sizeof(dataDir));
-@@ -297,11 +432,15 @@ int main(int argc, char *argv[]) {
+@@ -297,11 +441,15 @@ int main(int argc, char *argv[]) {
  #endif
  
  #ifdef __SWITCH__
