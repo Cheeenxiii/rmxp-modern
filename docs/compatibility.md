@@ -42,17 +42,51 @@ Pre-v19 games after `bin/rmxp migrate`, on stock mkxp-z:
   game-specific fix. On the first run of a fresh copy, Essentials v16 offers to
   install its fonts; this is cosmetic and goes away after a restart.
 
+Both were also checked beyond the first map: pause menu, party, bag, Pokédex,
+options, a complete wild battle and a save reloaded through the real Continue
+menu. The reloaded state is the same as before saving, apart from the frame
+counter and the save count.
+
 Rebuilt v19+ games need no migration; the v21.1 kit and Reborn were checked
 to boot on mkxp-z.
+
+Known limitations of the compatibility shims:
+
+- Windows-only native libraries are stubbed to 0: Uranium's `gif.dll`
+  animated pictures (its two GIF cutscenes lose their animation), Insurgence's
+  H-Mode7 maps (`MGC_Hmode7`), the Tolk/NVDA screen readers, and window
+  geometry calls (cosmetic).
+- Registry reads fall back to their defaults (music and sound stay on, the
+  suggested trainer name is random); saves go to the game folder when the
+  Windows known-folder API is missing.
+- Online features (GTS, trades, updates) need Windows sockets and are off.
+- `Thread.critical` is a no-op: the games use it around audio and bitmap
+  caches only, and no visible race was seen.
+- Uranium's options screen is drawn at 640x480 while the game surface is
+  512x384, so its title and help text are clipped; the rest of the screen
+  matches warmwinter's reference port.
+- A save written before the intro sets the player identity carries `metaID -1`
+  and crashes the Continue screen. The game does this itself, not the
+  migration; play through the intro (or use the debug mode) before saving.
 
 ## Nintendo Switch
 
 Tested under the Eden emulator (Vulkan/lavapipe), not on hardware. Frame rates
 under the emulator say nothing about the console.
 
-- Essentials v21.1 kit, original and rebuilt: title screen, menu, starting map.
-- Reborn: title screen and main menu, 40 fps under the emulator.
-- Uranium (warmwinter's mkxp-z port): language selection.
+- Essentials v21.1 kit: title screen with the minimal port built from
+  `patches/mkxp-z-switch/`, if the game folder is passed to the `.nro`
+  (see below).
+- Reborn: title screen and main menu (tested with the earlier port).
+- Uranium (warmwinter's mkxp-z port): language selection (tested with the
+  earlier port).
+
+The minimal port finds its game folder from the first argument or from the
+current directory. The Eden emulator starts the homebrew in the SD root with
+no arguments, so a direct launch exits before loading anything; use a forwarder
+that passes the folder (or the hardware Homebrew Menu, which starts the `.nro`
+from its own folder). Once the folder is known, the kit reaches its title
+screen under Eden.
 
 The Ruby in the Switch port does not ship the full standard library.
 `timeout`, `weakref` and `delegate` are provided as preload scripts. RubyGems,
@@ -66,8 +100,12 @@ off:
 - loading gems: scripts that call `gem` at startup keep going, but nothing is
   loaded.
 
-Reborn also needs `Input::E/F/D` and `Controller.axes_trigger`, which come from
-a compatibility shim installed with the game rather than from the engine.
+Reborn also needs `Input::E/F/D` and `Input::Controller.axes_trigger`, which
+come from a compatibility shim installed with the game rather than from the
+engine: the port binds ZL, ZR and minus to F5, F6 and F7 (the keys behind
+those names), but does not define the Ruby constants. `axes_trigger` returns
+zero, so trigger-based turbo is off; the ZL/ZR/minus bindings still reach the
+games.
 
 ## Dynamic Ruby
 
