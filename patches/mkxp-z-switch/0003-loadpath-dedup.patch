@@ -1,8 +1,8 @@
 diff --git a/src/main.cpp b/src/main.cpp
-index f4500d9..6342990 100644
+index f4500d9..be2479b 100644
 --- a/src/main.cpp
 +++ b/src/main.cpp
-@@ -317,18 +317,33 @@ int main(int argc, char *argv[]) {
+@@ -317,18 +317,34 @@ int main(int argc, char *argv[]) {
  
  #ifdef __SWITCH__
      // No MiniFFI on Switch: Ruby stand-ins from RomFS (switch/romfs-root/
@@ -36,6 +36,7 @@ index f4500d9..6342990 100644
 +    };
 +    // Must run first: absolute game paths for require().
 +    addSwitchPreload("romfs:/preload/switch_paths.rb");
++    addSwitchPreload("romfs:/preload/require_fallback.rb");
 +    addSwitchPreload("romfs:/preload/log_sync.rb");
 +    addSwitchPreload("romfs:/preload/win32api_stub.rb");
 +    addSwitchPreload("romfs:/preload/win32_wrap.rb");
