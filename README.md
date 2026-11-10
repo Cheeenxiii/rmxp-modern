@@ -3,8 +3,9 @@
 Tools to turn RPG Maker XP Pokémon fangames into plain-text projects, and to
 get them running on modern Ruby and new platforms.
 
-> **Status: experimental.** The project format, the commands and their output
-> will change without notice. Nothing here is meant for players yet.
+> **Status: v0.1.** Pokémon Uranium and Pokémon Insurgence are playable on
+> Linux after `migrate` and `package`; Windows packages are experimental. The
+> project format and commands may still change.
 
 ## Why
 
@@ -25,10 +26,12 @@ term goal is to compile games to native code.
   Uranium, Pokémon Insurgence and Pokémon Reborn.
 - **Static checks**: every script and every event script fragment is parsed
   with Prism, and dynamic Ruby (`eval`, computed `send`, ...) is inventoried.
-- **Migration of pre-v19 games** to Ruby 3: Uranium and Insurgence reach their
-  first map on mkxp-z without game-specific fixes.
-- **Nintendo Switch**: the Essentials v21.1 kit and Reborn boot to their menus
-  under an emulator, using the patches in [`patches/`](patches/).
+- **Migration of pre-v19 games** to Ruby 3: Uranium and Insurgence play on
+  Linux (menus, battles, save and reload) without game-specific fixes.
+- **Ready-to-play packages**: `package` bundles the game and mkxp-z for Linux
+  and Windows (Windows experimental); MIDI is converted to OGG.
+- **Nintendo Switch**: standalone `.nro` builds from `script/switch-build`;
+  tested under an emulator, hardware session pending.
 
 Not supported: encrypted archives (`Game.rgssad`, decrypt them first with
 another tool), Pokémon SDK, and the custom binary `.dat` files of Essentials
@@ -38,11 +41,27 @@ before v19 (copied as is).
 
 You need Ruby 3.3 or later. There are no gems to install.
 
+### Port and play a game (Uranium, Insurgence, ...)
+
+Build the patched mkxp-z once (see [docs/setup.md](docs/setup.md) for the
+dependencies):
+
 ```bash
 git clone https://github.com/Cheeenxiii/rmxp-modern.git
 cd rmxp-modern
-bin/rmxp unpack path/to/game project/
+script/setup
+cd vendor/mkxp-z && meson setup build && ninja -C build && cd ../..
 ```
+
+Then port the game and produce a ready-to-play Linux folder:
+
+```bash
+bin/rmxp migrate path/to/game out/game    # pre-v19 games (Uranium, Insurgence)
+bin/rmxp package out/game out/package     # out/package/linux, out/package/windows
+out/package/linux/run.sh
+```
+
+`unpack`/`build` are for editing the game data; they are not needed to play.
 
 This gives:
 
@@ -75,9 +94,9 @@ bin/rmxp build project/ rebuilt_game/
 ```
 
 Other commands: `roundtrip` (unpack, build and compare with the original),
-`check`, `audit`, `migrate` and `package` (ready-to-play Linux and Windows
-folders with the engine included). See [docs/usage.md](docs/usage.md) for details
-and [docs/compatibility.md](docs/compatibility.md) for per-game results.
+`check`, `audit`, `migrate` and `package`. See [docs/usage.md](docs/usage.md)
+for details and [docs/compatibility.md](docs/compatibility.md) for per-game
+results.
 
 To run games, you need a patched mkxp-z, for the desktop or the Switch:
 [docs/setup.md](docs/setup.md) explains how to build it.
