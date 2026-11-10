@@ -150,7 +150,8 @@ script/fetch-mkxp-z windows
 That downloads the pinned mkxp-z Actions artifact (about 51 MB,
 GPL-2.0-or-later, sha256-checked) into `vendor/mkxp-z-windows/`; it is not
 committed. `--mkxp-z-windows DIR` uses another unpacked build. Start a package
-with `./run.sh` (Linux) or `run.bat` (Windows).
+with `./run.sh` (Linux) or `run.bat` (Windows). The Windows package is
+experimental until it has been tested on a Windows machine.
 
 ## Encrypted games
 
