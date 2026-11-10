@@ -1,0 +1,27 @@
+# Follows the Nintendo button labels on Switch: A confirms, B cancels.
+
+diff --git a/src/input/keybindings.cpp b/src/input/keybindings.cpp
+index 937c09b3..29d1d13a 100644
+--- a/src/input/keybindings.cpp
++++ b/src/input/keybindings.cpp
+@@ -104,10 +104,20 @@ static elementsN(defaultKbBindings2);
+ 
+ static const CtrlBindingData defaultCtrlBindings[] =
+ {
++#ifdef __SWITCH__
++	/* SDL names the Switch buttons by position, Xbox style. Follow the
++	 * Nintendo labels instead: A (right) confirms, B (bottom) cancels, and
++	 * X (top) and Y (left) act like X and Y on other controllers. */
++	{ SDL_CONTROLLER_BUTTON_Y, Input::A  }, /* X */
++	{ SDL_CONTROLLER_BUTTON_A, Input::B  }, /* B */
++	{ SDL_CONTROLLER_BUTTON_B, Input::C  }, /* A */
++	{ SDL_CONTROLLER_BUTTON_X, Input::X  }, /* Y */
++#else
+ 	{ SDL_CONTROLLER_BUTTON_X, Input::A  },
+ 	{ SDL_CONTROLLER_BUTTON_B, Input::B  },
+ 	{ SDL_CONTROLLER_BUTTON_A, Input::C },
+ 	{ SDL_CONTROLLER_BUTTON_Y, Input::X  },
++#endif
+ 	{ SDL_CONTROLLER_BUTTON_LEFTSTICK, Input::Y  },
+ 	{ SDL_CONTROLLER_BUTTON_RIGHTSTICK, Input::Z },
+ 	{ SDL_CONTROLLER_BUTTON_LEFTSHOULDER, Input::L  },
