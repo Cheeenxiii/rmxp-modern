@@ -133,6 +133,12 @@ The transformations are generic, never specific to one game:
 - animated GIFs are converted to PNG frames when `ffmpeg` and `ffprobe` are
   available, and a Ruby reader replaces the game's `gif.dll` calls.
 
+MIDI music under `Audio/` is rendered to OGG when `fluidsynth` (or, failing
+that, `timidity`) and `ffmpeg` are installed and the game ships a soundfont
+(`soundfont.sf2` at the game root or under `Audio/`). The original `.mid` files
+are kept; without a renderer or a soundfont, `migrate` warns once and leaves
+them as they are.
+
 It also installs preload scripts in `OUT/preload/` and registers them in
 `mkxp.json`: Win32API and Ruby 1.8 shims (`Thread.critical`, `ENV["TEMP"]`,
 ...), and a cache for `System.power_state`. Essentials checks the battery every

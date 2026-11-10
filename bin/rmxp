@@ -90,6 +90,7 @@ when "migrate"
        "#{result.dynamic_flags} /n flags removed, #{result.when_colons} when clauses converted, " \
        "#{result.break_fixes} break/next fixed, #{result.read_bytes} read(1)[0] fixed, " \
        "#{result.proc_returns} proc returns converted, #{result.legacy_aliases} legacy string aliases removed, " \
+       "#{result.midis} MIDIs converted to OGG, " \
        "#{result.skipped_scripts} Windows-only scripts skipped, #{result.parse_errors} invalid script(s)"
   puts "output: #{File.expand_path(out_dir)}"
 when "audit"

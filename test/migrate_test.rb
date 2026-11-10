@@ -7,6 +7,7 @@ $LOAD_PATH.unshift(File.expand_path("../lib", __dir__))
 require "rmxp"
 require "tmpdir"
 require "fileutils"
+require "stringio"
 
 migrate = Rmxp::Migrate.allocate
 cases = {
@@ -81,6 +82,104 @@ if system("ffmpeg", "-version", out: File::NULL, err: File::NULL) &&
   end
 else
   puts "migrate: gif test skipped (ffmpeg not found)"
+end
+
+# MIDI conversion: a game soundfont plus a renderer must produce an .ogg next
+# to the original .mid. The renderer is faked on PATH, so the test does not
+# need fluidsynth; the conversion goes through ffmpeg.
+TINY_MIDI = ("MThd\x00\x00\x00\x06\x00\x00\x00\x01\x00\x60" \
+             "MTrk\x00\x00\x00\x0C\x00\x90\x3C\x64\x60\x80\x3C\x00\x00\xFF\x2F\x00").b
+FAKE_FLUIDSYNTH = <<~'RUBY'
+  #!/usr/bin/env ruby
+  args = ARGV
+  index = args.index("-F")
+  exit 0 unless index
+
+  rate = 44_100
+  samples = rate / 4
+  pcm = Array.new(samples) { |i| (Math.sin(2 * Math::PI * 440 * i / rate) * 8000).to_i }.pack("s<*")
+  wav = "RIFF" + [36 + pcm.bytesize].pack("V") + "WAVEfmt " +
+        [16, 1, 1, rate, rate * 2, 2, 16].pack("VvvVVvv") +
+        "data" + [pcm.bytesize].pack("V") + pcm
+  File.binwrite(args[index + 1], wav)
+RUBY
+
+midi_dir = Dir.mktmpdir("rmxp-migrate-midi")
+begin
+  game = File.join(midi_dir, "game")
+  FileUtils.mkdir_p(File.join(game, "Audio", "BGM"))
+  FileUtils.mkdir_p(File.join(game, "Audio", "ME"))
+  File.binwrite(File.join(game, "Audio", "BGM", "Theme.mid"), TINY_MIDI)
+  File.binwrite(File.join(game, "Audio", "ME", "End.midi"), TINY_MIDI)
+  File.write(File.join(game, "soundfont.sf2"), "sf2")
+
+  old_path = ENV["PATH"]
+  old_stderr = $stderr
+  begin
+    # No renderer on PATH: warn once, convert nothing, keep the .mid files.
+    ENV["PATH"] = File.join(midi_dir, "empty-bin")
+    FileUtils.mkdir_p(ENV["PATH"])
+    converter = Rmxp::Migrate.allocate
+    converter.instance_variable_set(:@out_dir, game)
+    warnings = StringIO.new
+    $stderr = warnings
+    converted = converter.send(:convert_midis)
+    $stderr = old_stderr
+    expected = converted.empty? && warnings.string.include?("not found") &&
+               File.exist?(File.join(game, "Audio", "BGM", "Theme.mid")) &&
+               Dir.glob(File.join(game, "Audio", "**", "*.ogg")).empty?
+    unless expected
+      failures += 1
+      puts "FAIL midi without renderer: converted=#{converted.inspect} stderr=#{warnings.string.inspect}"
+    end
+
+    ENV["PATH"] = old_path
+    fake_bin = File.join(midi_dir, "bin")
+    FileUtils.mkdir_p(fake_bin)
+    fake = File.join(fake_bin, "fluidsynth")
+    File.write(fake, FAKE_FLUIDSYNTH)
+    File.chmod(0o755, fake)
+
+    # A game without a soundfont is left alone, with one warning.
+    no_sf2 = File.join(midi_dir, "no-sf2")
+    FileUtils.mkdir_p(File.join(no_sf2, "Audio", "BGM"))
+    File.binwrite(File.join(no_sf2, "Audio", "BGM", "Only.mid"), TINY_MIDI)
+    converter.instance_variable_set(:@out_dir, no_sf2)
+    ENV["PATH"] = "#{fake_bin}:#{old_path}"
+    warnings = StringIO.new
+    $stderr = warnings
+    converted = converter.send(:convert_midis)
+    $stderr = old_stderr
+    expected = converted.empty? && warnings.string.include?("no .sf2 soundfont") &&
+               File.exist?(File.join(no_sf2, "Audio", "BGM", "Only.mid")) &&
+               Dir.glob(File.join(no_sf2, "Audio", "**", "*.ogg")).empty?
+    unless expected
+      failures += 1
+      puts "FAIL midi without soundfont: converted=#{converted.inspect} stderr=#{warnings.string.inspect}"
+    end
+
+    if system("ffmpeg", "-version", out: File::NULL, err: File::NULL)
+      converter.instance_variable_set(:@out_dir, game)
+      converted = converter.send(:convert_midis)
+      oggs = Dir.glob(File.join(game, "Audio", "**", "*.ogg")).sort
+      expected = converted.length == 2 && oggs.length == 2 &&
+                 oggs.all? { |path| File.size?(path) } &&
+                 File.exist?(File.join(game, "Audio", "BGM", "Theme.mid")) &&
+                 File.exist?(File.join(game, "Audio", "ME", "End.midi")) &&
+                 Dir.glob(File.join(game, "Audio", "**", "*.wav")).empty?
+      unless expected
+        failures += 1
+        puts "FAIL midi conversion: converted=#{converted.inspect} oggs=#{oggs.inspect}"
+      end
+    else
+      puts "migrate: midi conversion test skipped (ffmpeg not found)"
+    end
+  ensure
+    $stderr = old_stderr
+    ENV["PATH"] = old_path
+  end
+ensure
+  FileUtils.remove_entry(midi_dir)
 end
 
 puts failures.zero? ? "migrate: ok" : "migrate: #{failures} failure(s)"
