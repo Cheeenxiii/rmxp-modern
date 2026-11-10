@@ -129,7 +129,9 @@ The transformations are generic, never specific to one game:
 - `alias getbyte []` and similar aliases that made Ruby 3's String methods
   return strings again;
 - scripts that load the Windows RGSS Linker/FmodEx audio DLLs are dropped: they
-  only work on Windows, and mkxp-z provides the audio.
+  only work on Windows, and mkxp-z provides the audio;
+- animated GIFs are converted to PNG frames when `ffmpeg` and `ffprobe` are
+  available, and a Ruby reader replaces the game's `gif.dll` calls.
 
 It also installs preload scripts in `OUT/preload/` and registers them in
 `mkxp.json`: Win32API and Ruby 1.8 shims (`Thread.critical`, `ENV["TEMP"]`,
@@ -143,6 +145,39 @@ it.
 It refuses a game that still ships its `Game.rgssad` (or `.rgss2a`/`.rgss3a`):
 mkxp-z loads that archive before the loose files, so the migrated scripts would
 be ignored. Extract the archive first.
+
+## package
+
+```bash
+bin/rmxp package GAME OUT [--platforms linux,windows]
+bin/rmxp package GAME OUT --mkxp-z-linux PATH --mkxp-z-windows DIR
+```
+
+Turns a migrated game into folders that can be handed to someone without any
+other installation: `OUT/linux/` and `OUT/windows/`, each with the game, the
+mkxp-z engine and a launcher.
+
+```
+OUT/linux/    mkxp-z, lib/, run.sh, the game files
+OUT/windows/  mkxp-z.x86_64.exe, stdlib/, scripts/preload/, run.bat, the game files
+```
+
+The game's `Data/`, `Graphics/`, `Audio/`, `Fonts/`, `mkxp.json` and game-side
+`preload/` are copied. The text project (`scripts/`, `scripts.yml`), the
+Windows DLLs of the original game and save files are left out. The Linux engine
+is `vendor/mkxp-z/build/mkxp-z.x86_64` by default (see [setup.md](setup.md)),
+and the few libraries it links (OpenSSL, libffi, libyaml, zstd, zlib) are
+bundled in `lib/`; `run.sh` uses them. For Windows, fetch mkxp-z once:
+
+```bash
+script/fetch-mkxp-z windows
+```
+
+That downloads the pinned mkxp-z Actions artifact (about 51 MB, GPL-2.0-or-later,
+sha256-checked) into `vendor/mkxp-z-windows/`; it is not committed. Pass
+`--mkxp-z-windows DIR` to use another unpacked build.
+
+Start a package with `./run.sh` (Linux) or `run.bat` (Windows).
 
 ## Encrypted games
 

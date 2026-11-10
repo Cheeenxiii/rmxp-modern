@@ -108,6 +108,24 @@ when "audit"
   result = Rmxp::Audit.new(game_dir, work_dir).run
   print_audit(result)
   print_shims(result)
+when "package"
+  game_dir = ARGV.shift
+  out_dir = ARGV.shift
+  abort "usage: rmxp package GAME OUT [--platforms linux,windows] [--mkxp-z-linux BIN] [--mkxp-z-windows DIR]" unless game_dir && out_dir
+  platforms = %w[linux windows]
+  mkxp_linux = nil
+  mkxp_windows = nil
+  until ARGV.empty?
+    case ARGV.shift
+    when "--platforms" then platforms = ARGV.shift.to_s.split(",").map(&:strip)
+    when "--mkxp-z-linux" then mkxp_linux = ARGV.shift
+    when "--mkxp-z-windows" then mkxp_windows = ARGV.shift
+    else abort "unknown package option"
+    end
+  end
+  Rmxp::Package.new(game_dir, out_dir, platforms: platforms,
+                    mkxp_linux: mkxp_linux, mkxp_windows: mkxp_windows).run
+  puts "package: #{File.expand_path(out_dir)}"
 when "help", nil
   puts <<~TEXT
     rmxp - convert RPG Maker XP games to text projects and back
@@ -118,6 +136,7 @@ when "help", nil
       rmxp check GAME [WORKDIR]     parse every script and event script
       rmxp audit GAME [WORKDIR]     count dynamic Ruby constructs
       rmxp migrate GAME OUT         copy a pre-v19 game and port it to Ruby 3
+      rmxp package GAME OUT         ready-to-play folders with mkxp-z included
   TEXT
 else
   abort "unknown command: #{command}"

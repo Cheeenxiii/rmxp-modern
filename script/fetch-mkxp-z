@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Cheeenxiii
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Fetches a pinned mkxp-z Windows build for `bin/rmxp package`.
+#
+# mkxp-z publishes no releases; the Windows build is a GitHub Actions artifact.
+# Artifacts need authentication and expire, so this is pinned to one run:
+#   https://github.com/mkxp-z/mkxp-z/actions/runs/37110075912
+# The binary is GPL-2.0-or-later and is not modified by us.
+#
+# usage: script/fetch-mkxp-z windows
+
+set -euo pipefail
+
+root="$(cd "$(dirname "$0")/.." && pwd)"
+dest="${MKXP_Z_WINDOWS_DIR:-$root/vendor/mkxp-z-windows}"
+
+case "${1:-}" in
+  windows) ;;
+  *) echo "usage: script/fetch-mkxp-z windows" >&2; exit 2 ;;
+esac
+
+run=37110075912
+artifact=11270816518
+sha256=48abeb922ac018c5be6fb249cce788f6ab9a0da4f189969fb3fb948dc7812a1e
+url="https://api.github.com/repos/mkxp-z/mkxp-z/actions/artifacts/$artifact/zip"
+
+command -v gh >/dev/null || { echo "gh (GitHub CLI) not found" >&2; exit 1; }
+
+mkdir -p "$root/tmp"
+tmp="$root/tmp/mkxp-z-windows.zip"
+echo "downloading mkxp-z Windows build (run $run)"
+gh api "$url" > "$tmp"
+echo "$sha256  $tmp" | sha256sum -c -
+rm -rf "$dest"
+mkdir -p "$dest"
+unzip -q "$tmp" -d "$dest"
+rm -f "$tmp"
+echo "mkxp-z Windows build: $dest"
+find "$dest" -maxdepth 2 -type f -name 'mkxp-z.exe' -o -maxdepth 2 -type f -name '*.dll' | head

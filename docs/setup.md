@@ -46,6 +46,11 @@ meson setup build
 ninja -C build
 ```
 
+`bin/rmxp package` also offers Windows folders; it needs a Windows mkxp-z,
+which `script/fetch-mkxp-z windows` downloads (a pinned mkxp-z Actions
+artifact, sha256-checked, in `vendor/mkxp-z-windows/`). See
+[usage.md](usage.md#package).
+
 `test/headless_test.rb` looks for the binary at
 `vendor/mkxp-z/build/mkxp-z.x86_64`; set `MKXP_BIN` if yours is elsewhere. It
 also needs `xvfb-run` (package `xvfb`).
