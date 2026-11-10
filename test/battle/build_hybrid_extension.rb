@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Cheeenxiii
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 # Compile le noyau de dégâts (test/battle/hybrid_damage.rb) en extension CRuby
 # avec Spinel. Nécessite les en-têtes Ruby (paquet ruby3.3-dev) et un Spinel
 # compilé dans vendor/spinel.

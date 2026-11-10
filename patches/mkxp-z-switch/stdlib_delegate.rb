@@ -1,4 +1,8 @@
 # frozen_string_literal: true
+# SPDX-License-Identifier: Ruby OR BSD-2-Clause
+# Copy of the "delegate" library 0.2.0 from the Ruby standard library
+# (https://github.com/ruby/delegate). Copyright Yukihiro Matsumoto
+# and the Ruby contributors.
 # = delegate -- Support for the Delegation Pattern
 #
 # Documentation by James Edward Gray II and Gavin Sinclair

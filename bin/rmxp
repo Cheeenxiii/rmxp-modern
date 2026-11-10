@@ -1,4 +1,7 @@
 #!/usr/bin/env ruby
+# SPDX-FileCopyrightText: 2026 Cheeenxiii
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 $LOAD_PATH.unshift(File.expand_path("../lib", __dir__))
 require "rmxp"
 

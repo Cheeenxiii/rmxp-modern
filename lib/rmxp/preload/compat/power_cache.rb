@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Cheeenxiii
+# SPDX-License-Identifier: MIT
+
 # Cache générique de System.power_state. Les jeux Essentials v19+ appellent
 # pbBatteryLow? à chaque frame ; sur certaines plateformes SDL_GetPowerInfo
 # coûte ~1 ms par appel. Fenêtre par défaut : 5 s, désactivable avec

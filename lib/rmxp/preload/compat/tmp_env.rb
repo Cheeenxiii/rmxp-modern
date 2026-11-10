@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Cheeenxiii
+# SPDX-License-Identifier: MIT
+
 # Les jeux Essentials Windows utilisent ENV["TEMP"] pour des fichiers
 # temporaires. Sous Linux/macOS, fournir un chemin valide.
 temp = (ENV["TMPDIR"] || ENV["TMP"] || "/tmp")

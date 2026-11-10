@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Cheeenxiii
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 module BattleHot
   #: (Integer, Integer, Integer, Integer, Float) -> Integer
   def self.damage(level, base, attack, defense, final_multiplier)

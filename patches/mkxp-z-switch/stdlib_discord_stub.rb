@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Cheeenxiii
+# SPDX-License-Identifier: MIT
+
 # Reborn charge la gem native discord (Rich Presence), absente du port.
 # Le jeu tolère une présence inactive si les méthodes existent.
 module Discord

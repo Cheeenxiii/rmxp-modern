@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Cheeenxiii
+# SPDX-License-Identifier: GPL-3.0-or-later
 
 # ==== harnais de combat (partie compilée) ====
 N = (ARGV[0] || "1000").to_i

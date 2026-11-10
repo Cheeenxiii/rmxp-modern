@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Cheeenxiii
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 # Génère les tables GameData utilisées par les combats sous forme de littéraux
 # Ruby (appels à GameData::X.register), pour ne pas dépendre de Marshal au
 # runtime du harnais compilé.

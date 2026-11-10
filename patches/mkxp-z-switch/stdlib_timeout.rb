@@ -1,4 +1,8 @@
 # frozen_string_literal: false
+# SPDX-License-Identifier: Ruby OR BSD-2-Clause
+# Copy of the "timeout" library 0.2.0 from the Ruby standard library
+# (https://github.com/ruby/timeout). Copyright Yukihiro Matsumoto
+# and the Ruby contributors.
 # Timeout long-running blocks
 #
 # == Synopsis

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Cheeenxiii
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 # Assemble un programme unique (stubs + moteur ESS + données littérales +
 # harnais) pour la compilation Spinel.
 ROOT = File.expand_path("../..", __dir__)

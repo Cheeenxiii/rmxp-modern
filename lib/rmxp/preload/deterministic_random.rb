@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Cheeenxiii
+# SPDX-License-Identifier: MIT
+
 # Deterministic RNG shim for mkxp-z.
 #
 # Loaded as a preload script, after lib/rmxp/mt19937.rb has been concatenated

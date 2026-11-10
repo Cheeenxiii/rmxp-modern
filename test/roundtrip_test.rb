@@ -1,4 +1,7 @@
 #!/usr/bin/env ruby
+# SPDX-FileCopyrightText: 2026 Cheeenxiii
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 # Round-trip test over the corpus. This is the jalon 1 acceptance test:
 # unpack(game) -> build -> the data must reload identically.
 $LOAD_PATH.unshift(File.expand_path("../lib", __dir__))

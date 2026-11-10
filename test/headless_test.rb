@@ -1,4 +1,7 @@
 #!/usr/bin/env ruby
+# SPDX-FileCopyrightText: 2026 Cheeenxiii
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 # Lance un jeu dans mkxp-z sous Xvfb avec le RNG déterministe et un compteur
 # de frames, puis écrit un dump d'état. Deux exécutions avec la même graine
 # doivent produire le même dump.

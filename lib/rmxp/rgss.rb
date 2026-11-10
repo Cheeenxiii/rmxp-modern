@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Cheeenxiii
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 # RGSS value types that Marshal stores in their own binary format.
 #
 # RMXP data files contain Table, Color, Tone and Rect values. They are not

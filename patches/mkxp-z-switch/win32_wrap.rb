@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CC0-1.0
 # win32_wrap.rb
 # Author: Ancurio (2014)
 # https://github.com/Ancurio/mkxp/issues/73
@@ -8,6 +9,7 @@
 # https://creativecommons.org/publicdomain/zero/1.0/
 
 # Edits by Splendide Imaginarius (2023-2024) also CC0.
+# Changes made in rmxp-modern are also released under CC0.
 
 # This preload script provides a subset of Win32API in a cross-platform way, so
 # you can play Win32API-based games on Linux and macOS.

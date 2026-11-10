@@ -48,3 +48,18 @@ l'original. Un jeu en archive RGSSAD doit d'abord être déchiffré (voir
 - [docs/architecture.md](docs/architecture.md) — structure du code
 - [docs/contributing.md](docs/contributing.md) — tests et ajout d'un format
 - [TODO.md](TODO.md) — ce qui reste à faire
+
+## License
+
+The tool is licensed under the [GNU GPL v3 or later](LICENSE).
+
+Code that `rmxp` copies into the games it converts is under permissive
+licenses, so a converted game does not inherit any GPL obligation:
+the compatibility shims in `lib/rmxp/preload/compat/` and the RNG
+(`lib/rmxp/mt19937.rb`, `lib/rmxp/preload/deterministic_random.rb`) are MIT or
+CC0. The patches to mkxp-z follow mkxp-z's license (GPL-2.0-or-later), see
+[patches/README.md](patches/README.md). Every file states its license in an
+[SPDX](https://spdx.dev/) header; full texts are in [LICENSES/](LICENSES/).
+
+Game data and scripts that `rmxp` extracts, converts or rebuilds remain the
+property of the game's authors.

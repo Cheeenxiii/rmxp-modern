@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Cheeenxiii
+# SPDX-License-Identifier: MIT
+
 # Sous Windows, ouvrir un dossier avec File.open lève EACCES ; sous Linux,
 # EISDIR. Les jeux Essentials ne rescapent souvent que EACCES/ENOENT.
 class << File

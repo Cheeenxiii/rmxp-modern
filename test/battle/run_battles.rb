@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Cheeenxiii
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 $LOAD_PATH.unshift(File.expand_path(__dir__))
 require_relative "stubs"
 require_relative "../../lib/rmxp/mt19937"

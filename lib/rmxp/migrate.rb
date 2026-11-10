@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Cheeenxiii
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 require "fileutils"
 require "yaml"
 require "json"
@@ -214,6 +217,8 @@ module Rmxp
     def append_string_input_compat(scripts_dir)
       file = "9999_rmxp_string_input.rb"
       File.write(File.join(scripts_dir, file), <<~RUBY)
+        # SPDX-FileCopyrightText: 2026 Cheeenxiii
+        # SPDX-License-Identifier: MIT
         # Ruby 1.8 : String#[] / IO#getc renvoyaient un octet ; Ruby 3 renvoie
         # un String. Couvre les deux familles de StringInput (IO ou classe
         # autonome avec @string/@pos).

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Cheeenxiii
+# SPDX-License-Identifier: MIT
+
 # Le build Ruby du port n'a pas net/http. Reborn le require au démarrage pour
 # son updater ; on marque la feature chargée et on laisse l'appel échouer
 # proprement (l'updater rattrape les erreurs StandardError).

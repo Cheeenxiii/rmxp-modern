@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Cheeenxiii
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 # Headless scenario probe for mkxp-z.
 #
 # Loaded as a preload script. Essentials later aliases Graphics.update into

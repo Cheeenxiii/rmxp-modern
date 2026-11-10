@@ -1,4 +1,7 @@
 #!/usr/bin/env ruby
+# SPDX-FileCopyrightText: 2026 Cheeenxiii
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 # Vérifie que le MT19937 maison tire exactement les mêmes nombres que CRuby
 # avec la même graine : bits bruts, flottants, entiers et plages.
 $LOAD_PATH.unshift(File.expand_path("../lib", __dir__))
