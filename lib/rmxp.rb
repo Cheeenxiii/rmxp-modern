@@ -9,6 +9,7 @@ require_relative "rmxp/scripts"
 require_relative "rmxp/project"
 require_relative "rmxp/check"
 require_relative "rmxp/audit"
+require_relative "rmxp/midi"
 require_relative "rmxp/migrate"
 require_relative "rmxp/package"
 

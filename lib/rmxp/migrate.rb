@@ -7,6 +7,8 @@ require "json"
 require "open3"
 require "prism"
 
+require_relative "midi"
+
 module Rmxp
   # Compatibility migration for pre-v19 Essentials games: copies the game,
   # extracts the scripts, applies generic transformations, then rebuilds
@@ -68,7 +70,7 @@ module Rmxp
 
       append_string_input_compat(scripts_dir)
       append_gif_frames_compat(scripts_dir) unless convert_gifs.empty?
-      midis = convert_midis.length
+      midis = Rmxp::Midi.convert(@out_dir)
       File.binwrite(File.join(@out_dir, "Data/Scripts.rxdata"), Rmxp::Scripts.build(@out_dir))
       install_preloads
       ensure_game_ini
@@ -487,79 +489,6 @@ module Rmxp
       main ||= scripts.index { |entry| entry["file"].include?("Main") } || scripts.length
       scripts.insert(main, { "id" => 9_999_998, "file" => file, "name" => "rmxp compat" })
       File.write(path, YAML.dump(manifest))
-    end
-
-    # The Switch port skips MIDI, and so does every platform without a MIDI
-    # synth. Render the game's own soundfont once, at migration time, and keep
-    # the .mid files: mkxp-z loads the .ogg next to them.
-    def convert_midis
-      midis = Dir.glob(File.join(@out_dir, "Audio", "**", "*.{mid,midi}"), File::FNM_CASEFOLD).sort
-      return [] if midis.empty?
-
-      soundfont = find_soundfont
-      unless soundfont
-        warn "rmxp: no .sf2 soundfont in the game; MIDI files will not be converted"
-        return []
-      end
-
-      renderer = midi_renderer
-      unless renderer && tool_available?("ffmpeg")
-        warn "rmxp: fluidsynth, timidity or ffmpeg not found; MIDI files will not be converted"
-        return []
-      end
-
-      midis.filter_map { |midi| convert_midi(midi, soundfont, renderer) }
-    end
-
-    def find_soundfont
-      local = Dir.glob(File.join(@out_dir, "*.sf2"), File::FNM_CASEFOLD).sort
-      audio = Dir.glob(File.join(@out_dir, "Audio", "**", "*.sf2"), File::FNM_CASEFOLD).sort
-      (local + audio).find { |path| File.size?(path) }
-    end
-
-    def midi_renderer
-      return "fluidsynth" if tool_available?("fluidsynth")
-      return "timidity" if tool_available?("timidity")
-
-      nil
-    end
-
-    def tool_available?(tool)
-      Open3.capture3(tool, "-version")
-      true
-    rescue Errno::ENOENT
-      false
-    end
-
-    def convert_midi(midi, soundfont, renderer)
-      relative = relative_to_out(midi)
-      ogg = midi.sub(/\.midi?\z/i, ".ogg")
-      wav = "#{midi}.rmxp-tmp.wav"
-      if renderer == "fluidsynth"
-        _out, err, status = run_tool(renderer, "-ni", "-F", wav, "-r", "44100", soundfont, midi)
-      else
-        _out, err, status = run_tool(renderer, "-Ow", "-o", wav, midi)
-      end
-      if !status&.success? || !File.size?(wav)
-        warn "rmxp: could not render #{relative}#{tool_error(err)}; MIDI left as is"
-        return nil
-      end
-
-      _out, err, status = run_tool("ffmpeg", "-y", "-v", "error", "-i", wav,
-                                   "-c:a", "libvorbis", "-q:a", "4", ogg)
-      if !status&.success? || !File.size?(ogg)
-        FileUtils.rm_f(ogg)
-        warn "rmxp: could not encode #{relative} to OGG#{tool_error(err)}; MIDI left as is"
-        return nil
-      end
-      ogg
-    ensure
-      FileUtils.rm_f(wav) if wav
-    end
-
-    def tool_error(text)
-      line = text.to_s.lines.first.to_s.strip
-      line.empty? ? "" : " (#{line})"
     end
 
     def install_preloads

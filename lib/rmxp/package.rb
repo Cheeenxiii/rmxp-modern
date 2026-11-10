@@ -35,6 +35,7 @@ module Rmxp
       raise ArgumentError, "output already exists: #{@out_dir}" if File.exist?(@out_dir)
 
       FileUtils.mkdir_p(@out_dir)
+      @audio_source = nil
       @platforms.each { |platform| send("package_#{platform}") }
       @out_dir
     end
@@ -44,6 +45,7 @@ module Rmxp
     def package_linux
       dir = File.join(@out_dir, "linux")
       copy_game(dir)
+      prepare_audio(dir)
       engine = @mkxp_linux || File.join("vendor", "mkxp-z", "build", "mkxp-z.x86_64")
       raise ArgumentError, "Linux mkxp-z not found: #{engine} (pass --mkxp-z-linux)" unless File.file?(engine)
 
@@ -62,6 +64,7 @@ module Rmxp
     def package_windows
       dir = File.join(@out_dir, "windows")
       copy_game(dir)
+      prepare_audio(dir)
       engine = @mkxp_windows || File.join("vendor", "mkxp-z-windows")
       engine = File.join(engine, "mkxp-z.x86_64.exe") if File.directory?(engine)
       unless File.file?(engine)
@@ -82,6 +85,21 @@ module Rmxp
         mkxp-z.x86_64.exe %*
       BAT
       write_readme(dir, "windows")
+    end
+
+    # Render the game's MIDI once (for platforms without a MIDI synth) and
+    # copy the resulting OGGs into the other platform's folder.
+    def prepare_audio(dir)
+      if @audio_source.nil?
+        Rmxp::Midi.convert(dir)
+        @audio_source = dir
+        return
+      end
+      Dir.glob(File.join(@audio_source, "Audio", "**", "*.ogg")).each do |source|
+        target = File.join(dir, source.delete_prefix("#{@audio_source}/"))
+        FileUtils.mkdir_p(File.dirname(target))
+        FileUtils.cp(source, target)
+      end
     end
 
     def copy_game(dir)

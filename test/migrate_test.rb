@@ -119,13 +119,11 @@ begin
     # No renderer on PATH: warn once, convert nothing, keep the .mid files.
     ENV["PATH"] = File.join(midi_dir, "empty-bin")
     FileUtils.mkdir_p(ENV["PATH"])
-    converter = Rmxp::Migrate.allocate
-    converter.instance_variable_set(:@out_dir, game)
     warnings = StringIO.new
     $stderr = warnings
-    converted = converter.send(:convert_midis)
+    converted = Rmxp::Midi.convert(game)
     $stderr = old_stderr
-    expected = converted.empty? && warnings.string.include?("not found") &&
+    expected = converted.zero? && warnings.string.include?("not found") &&
                File.exist?(File.join(game, "Audio", "BGM", "Theme.mid")) &&
                Dir.glob(File.join(game, "Audio", "**", "*.ogg")).empty?
     unless expected
@@ -144,13 +142,12 @@ begin
     no_sf2 = File.join(midi_dir, "no-sf2")
     FileUtils.mkdir_p(File.join(no_sf2, "Audio", "BGM"))
     File.binwrite(File.join(no_sf2, "Audio", "BGM", "Only.mid"), TINY_MIDI)
-    converter.instance_variable_set(:@out_dir, no_sf2)
     ENV["PATH"] = "#{fake_bin}:#{old_path}"
     warnings = StringIO.new
     $stderr = warnings
-    converted = converter.send(:convert_midis)
+    converted = Rmxp::Midi.convert(no_sf2)
     $stderr = old_stderr
-    expected = converted.empty? && warnings.string.include?("no .sf2 soundfont") &&
+    expected = converted.zero? && warnings.string.include?("no .sf2 soundfont") &&
                File.exist?(File.join(no_sf2, "Audio", "BGM", "Only.mid")) &&
                Dir.glob(File.join(no_sf2, "Audio", "**", "*.ogg")).empty?
     unless expected
@@ -159,10 +156,9 @@ begin
     end
 
     if system("ffmpeg", "-version", out: File::NULL, err: File::NULL)
-      converter.instance_variable_set(:@out_dir, game)
-      converted = converter.send(:convert_midis)
+      converted = Rmxp::Midi.convert(game)
       oggs = Dir.glob(File.join(game, "Audio", "**", "*.ogg")).sort
-      expected = converted.length == 2 && oggs.length == 2 &&
+      expected = converted == 2 && oggs.length == 2 &&
                  oggs.all? { |path| File.size?(path) } &&
                  File.exist?(File.join(game, "Audio", "BGM", "Theme.mid")) &&
                  File.exist?(File.join(game, "Audio", "ME", "End.midi")) &&
