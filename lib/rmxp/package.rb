@@ -98,6 +98,23 @@ module Rmxp
           FileUtils.cp(source, target)
         end
       end
+      scrub_test_probes(dir)
+    end
+
+    # The console performance probe is a test tool; a player package never
+    # ships it, even if it is in the source folder.
+    def scrub_test_probes(dir)
+      Dir.glob(File.join(dir, "**", "zz_switch_perf.rb")).each { |path| FileUtils.rm_f(path) }
+      config = File.join(dir, "mkxp.json")
+      return unless File.file?(config)
+
+      text = File.read(config)
+      updated = text.sub(/"preloadScript"\s*:\s*\[(.*?)\]/m) do
+        items = Regexp.last_match(1).split(",").map(&:strip).reject(&:empty?)
+        items.reject! { |item| item.include?("preload/zz_switch_perf.rb") }
+        "\"preloadScript\": [#{items.join(', ')}]"
+      end
+      File.write(config, updated) if updated != text
     end
 
     # The desktop build links against a few libraries that not every

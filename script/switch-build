@@ -8,7 +8,7 @@
 # The game is installed to sdmc:/switch/mkxp-z/<name>/ on first launch (RomFS
 # is read-only), so saves and temporary files work normally.
 #
-# usage: script/switch-build GAME [OUT.nro] [--name NAME] [--icon IMAGE]
+# usage: script/switch-build GAME [OUT.nro] [--name NAME] [--icon IMAGE] [--perf-probe]
 #
 # Needs script/setup to have been run once, and either devkitPro in the
 # environment or Docker (devkitpro/devkita64:20251117).
@@ -24,10 +24,12 @@ shift
 out=""
 name=""
 icon=""
+perf_probe=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --name) name="${2:?--name needs a value}"; shift 2 ;;
     --icon) icon="${2:?--icon needs a value}"; shift 2 ;;
+    --perf-probe) perf_probe=1; shift ;;
     -*) echo "unknown option: $1" >&2; exit 2 ;;
     *) out="$1"; shift ;;
   esac
@@ -77,6 +79,26 @@ mkdir -p "$romfs/game"
 echo "staging $game in the RomFS"
 cp -a "$game/." "$romfs/game/"
 chmod -R u+w "$romfs/game"
+# The console perf probe is test-only: never in a default build, opt in with
+# --perf-probe.
+rm -f "$romfs/game/preload/zz_switch_perf.rb"
+if [ "$perf_probe" = 1 ]; then
+  cp "$root/script/switch-perf-probe.rb" "$romfs/game/preload/zz_switch_perf.rb"
+fi
+ruby - "$romfs/game/mkxp.json" "$perf_probe" <<'RUBY'
+path, probe = ARGV
+text = File.read(path)
+entry = "preload/zz_switch_perf.rb"
+if text =~ /"preloadScript"\s*:\s*\[(.*?)\]/m
+  body = Regexp.last_match(1).split(",").map { |item| item.strip.delete_prefix('"').delete_suffix('"') }
+  body.reject! { |item| item == entry }
+  body << entry if probe == "1"
+  text = text.sub(/"preloadScript"\s*:\s*\[.*?\]/m, "\"preloadScript\": [#{body.map { |item| item.inspect }.join(', ')}]")
+elsif probe == "1"
+  text = text.sub(/\{\s*\n/, "{\n  \"preloadScript\": [#{entry.inspect}],\n")
+end
+File.write(path, text)
+RUBY
 # Windows-only files, never used by the engine on the console.
 find "$romfs/game" -maxdepth 2 \( -iname '*.exe' -o -iname '*.dll' -o -iname '*.lnk' \
   -o -iname '*.rgssad' -o -iname '*.rgss2a' -o -iname '*.rgss3a' \) -delete

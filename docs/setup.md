@@ -113,6 +113,11 @@ Game-side preloads travel with the game: if a game needs one (Reborn's
 `Input::E/F/D` shim, for instance), put it in the game's `preload/` folder and
 list it in the game's `mkxp.json` before running `script/switch-build`.
 
+For a console calibration session, `script/switch-build --perf-probe` adds a
+test-only probe (`preload/zz_switch_perf.rb`) that writes `RMXP_PERF` frame
+times to `mkxp-z.log` every few seconds. Default `.nro` builds and
+`bin/rmxp package` never include it.
+
 Controls go through mkxp-z's usual bindings, following the Nintendo labels:
 A confirms and B cancels. ZL, ZR and minus are bound to F5, F6 and F7, which
 some games read as `Input::E`, `F` and `D`. MIDI music is skipped, and HTTP

@@ -20,7 +20,8 @@ module Rmxp
     # a counter incremented by 2 per update. Keep the same unit.
     GIF_DELAY_UNITS = 100
     PRELOADS = %w[preload/win32_wrap.rb preload/ruby18_wrap.rb preload/ruby18_extra.rb
-                  preload/mkxp_wrap.rb preload/add_stdlib.rb preload/power_cache.rb preload/tmp_env.rb preload/errno_dir.rb preload/input_ext.rb].freeze
+                  preload/mkxp_wrap.rb preload/add_stdlib.rb preload/power_cache.rb preload/tmp_env.rb preload/errno_dir.rb preload/input_ext.rb
+                  preload/window_scale.rb].freeze
 
     Result = Struct.new(:scripts, :regexes, :dynamic_flags, :when_colons, :break_fixes,
                         :read_bytes, :proc_returns, :legacy_aliases, :skipped_scripts,
