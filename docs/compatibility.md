@@ -80,19 +80,21 @@ Known limitations of the compatibility shims:
 Tested under the Eden emulator (Vulkan/lavapipe), not on hardware. Frame rates
 under the emulator say nothing about the console.
 
-- Essentials v21.1 kit: title screen with the minimal port built from
-  `patches/mkxp-z-switch/`, if the game folder is passed to the `.nro`
-  (see below).
-- Reborn: title screen and main menu (tested with the earlier port).
-- Uranium (warmwinter's mkxp-z port): language selection (tested with the
-  earlier port).
+- Essentials v21.1 kit: title screen from a standalone `.nro` with the game
+  inside the RomFS (built by `script/switch-build`).
+- Reborn: title screen from a standalone `.nro`, with its game-side
+  `preload/input_ext.rb`. Its updater fails non-blockingly (`URI` error from the
+  `net/http` stub).
+- Uranium, migrated: language selection from a standalone `.nro`.
 
-The minimal port finds its game folder from the first argument or from the
-current directory. The Eden emulator starts the homebrew in the SD root with
-no arguments, so a direct launch exits before loading anything; use a forwarder
-that passes the folder (or the hardware Homebrew Menu, which starts the `.nro`
-from its own folder). Once the folder is known, the kit reaches its title
-screen under Eden.
+A/B, the naming screen and gameplay were not verified under Eden: synthetic
+keyboard events did not reach the emulator's controller layer in the test
+harness. That part needs the hardware session.
+
+The `.nro` finds its game in the `.nro`'s RomFS first, then from the first
+argument, then in the `.nro`'s folder, then in `sdmc:/switch/mkxp-z/game/`.
+A game in the RomFS is copied once to the SD card, because the RomFS is
+read-only and the games write saves and temporary files next to their data.
 
 The Ruby in the Switch port does not ship the full standard library.
 `timeout`, `weakref` and `delegate` are provided as preload scripts. RubyGems,
