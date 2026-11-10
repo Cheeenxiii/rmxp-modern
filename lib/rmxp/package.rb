@@ -11,11 +11,12 @@ module Rmxp
 
     # Source-side leftovers that have no use in a player package.
     SKIP = %w[scripts scripts.yml errorlog.txt].freeze
+    # Saves and per-player settings live at the game root; they are not part
+    # of a distributable game, whatever the game names them.
     SKIP_PATTERNS = [/\A.*\.exe\z/i, /\A.*\.dll\z/i, /\A.*\.lnk\z/i,
                      /\A.*\.rgssad\z/i, /\A.*\.rgss2a\z/i, /\A.*\.rgss3a\z/i,
                      /\A.*\.rxproj\z/i, /\Aerrorlog\.txt\z/i, /\A.*\.log\z/i,
-                     /\A(?:Uranium|Game|Save_\d+|Save_0_Backup_\d+)\.rxdata\z/i,
-                     /\AGlobalSettings\.rxdata\z/i].freeze
+                     /\A.*\.rxdata(?:\.bak)?\z/i].freeze
     # Never bundle these system libraries; every Linux target has them.
     SYSTEM_LIBS = [/\Ald-linux/, /\Alibc\.so/, /\Alibm\.so/, /\Alibgcc_s\.so/,
                    /\Alibpthread\.so/, /\Alibdl\.so/, /\Alibrt\.so/].freeze

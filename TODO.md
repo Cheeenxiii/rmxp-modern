@@ -82,6 +82,7 @@
   map (676); those maps render as a flat tilemap instead of the heightmap view.
   No pure-Ruby H-Mode7 exists; a partial Ruby mode-7 is a 1-2 week project.
 - Screen readers (Tolk/NVDA) are not implemented; see docs/compatibility.md.
-- Uranium's options screen is still clipped: the game's own resize code sets a
-  512x384 surface, while the options screen draws at 640x480. The window-resize
-  translation cannot fix that without changing the game's screen size.
+- Uranium draws at 512x384 in a 640x480 window (black bands); the reference
+  port upscales the picture. A compat preload could set the surface to the
+  game size and pin the window at 640x480 (resize_window after the game's
+  resize), matching the reference within a pixel.
