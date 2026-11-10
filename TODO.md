@@ -1,42 +1,57 @@
 # TODO
 
-- Rendus lisibles des `.dat` binaires d'Essentials avant v19 : `items.dat`, `moves.dat`,
-  `evolutions.dat`, `dexdata.dat`, `eggEmerald.dat`, `regionals.dat`, `attacksRS.dat`,
-  `rsattacks.dat`, `tutor.dat`, `tmpbs.dat`, `BackupSave.dat`. Aujourd'hui copiés en
-  `opaque` (aller-retour fidèle, pas de texte).
-- Reborn `Data/mons.dat` : Marshal avec classes internes non résolues
-  (`MonDataHash`, `MonWrapper`, `MonData`) → `opaque`.
-- `Table`/`Color`/`Tone`/`Rect` conservés en blob Marshal : décoder `Table` au moins,
-  pour que les cartes soient lisibles en texte.
-- PSDK : formats VD, `Scripts.dat`/YARB. Après accord sur le périmètre.
-- Compiler mkxp-z (paquets système à installer) et vérifier que les jeux reconstruits
-  des kits v19+ et Reborn démarrent.
-- Reborn sous Xvfb : le boot dépasse le timebox (données volumineuses, ou blocage
-  spécifique à Reborn). À reprendre avec un affichage réel ; le kit v21.1, lui, démarre.
-- mkxp-z compilé sans extension Ruby `openssl` (`--with-out-ext=openssl...`) : Reborn
-  (Updater/net/http) échoue avec notre binaire ; utiliser le mkxp-z fourni par Reborn
-  pour Reborn, ou corriger le build Ruby (jalon 6).
-- Portage Uranium warmwinter : le dépôt ne contient pas les assets ; il faut les copier
-  depuis l'archive d'origine et créer `Patches/` (le port attend ce dossier). À
-  automatiser si les builds Uranium en ont besoin.
-- Audit du dynamisme : Essentials et PSDK sont audités et classés.
-- Jalon 4 (cœur des combats, kit v21.1) : harnais CRuby pur opérationnel, données
-  littérales identiques aux données Marshal, 1000 combats CRuby = 31,4 s (données
-  réduites). Spinel : 94 refus (noyau), 371 refus (50 %), échec de génération au palier
-  100 % (`@color` typé différemment entre CommandMenu et MenuBase) ; avec
-  `--defer-refusals` le C généré ne compile pas (erreur de types). Aucun binaire Spinel
-  produit. Décision native/hybride/plan B à prendre (recommandation : plan B court
-  terme, Spinel réservé aux sous-systèmes numériques purs).
-- Uranium : le menu de langue redessine tout à chaque frame (`pbDrawShadowText`,
-  `BitmapWrapper#initialize`, cache de bitmaps, `canonicalize` des chemins) ; diagnostic
-  fait, pas d'optimisation décidée.
-- Kit v21.1, profil carte : ~7,4 ms de logique + 1,2 ms de rendu par frame (PC,
-  llvmpipe) ; dominé par `TilemapRenderer#update`, `pbBatteryLow?` (appel natif
-  `System.power_state` chaque frame), `Game_Map#data` ; GC 59 collections / 327 ms en
-  4 s. Combat : ~0,07 ms logique + 1,1 ms rendu. Candidats de transformation perf :
-  cache de `System.power_state`, éviter l'accès `map.data` par tuile, anti-redessin.
-- Transformations : traiter les chaînes d'alias sur `Graphics.update` (5 à 16 par jeu)
-  comme des alias normaux, et les `eval` des événements comme des méthodes générées.
-- Shim `Array#sample(n)` : exact pour n <= 10 ; au-delà, repli sur un Fisher-Yates partiel
-  qui peut différer de CRuby. Aucun usage connu dans les scénarios visés.
-- Table/Color/Tone/Rect conservés en blob Marshal (voir ci-dessus).
+## Formats
+
+- Decode the binary `.dat` files of Essentials before v19 (`items.dat`,
+  `moves.dat`, `evolutions.dat`, `dexdata.dat`, `eggEmerald.dat`,
+  `regionals.dat`, `attacksRS.dat`, `rsattacks.dat`, `tutor.dat`, `tmpbs.dat`,
+  `BackupSave.dat`). They are copied as `opaque` today: the round trip is
+  exact, but they aren't text.
+- Reborn's `Data/mons.dat`: Marshal with internal classes that aren't resolved
+  (`MonDataHash`, `MonWrapper`, `MonData`), so it's `opaque`.
+- `Table`, `Color`, `Tone` and `Rect` are kept as Marshal blobs. Decode `Table`
+  at least, so maps are readable as text.
+- Pokémon SDK: VD formats and `Scripts.dat`/YARB. Scope to be decided.
+
+## Running games
+
+- Reborn under Xvfb takes longer to boot than the time limit (large data, or
+  something Reborn-specific). Retry with a real display; the v21.1 kit boots.
+- Our mkxp-z build has no Ruby `openssl` extension, so Reborn's updater
+  (`net/http`) fails with it. Use the mkxp-z that ships with Reborn, or fix the
+  Ruby build.
+- The Uranium port (warmwinter) has no assets in its repository: they must be
+  copied from the original release, and the port expects a `Patches/`
+  directory. Automate this if Uranium builds need it.
+
+## Native compilation
+
+- The battle harness works in plain CRuby, and the literal battle data matches
+  the Marshal data. 1000 battles take 31.4 s (reduced data).
+- Spinel refuses 94 constructs in the core, 371 at 50% of the engine, and fails
+  to generate code at 100% (`@color` is typed differently in `CommandMenu` and
+  `MenuBase`). With `--defer-refusals` the generated C doesn't compile (type
+  errors). No Spinel binary yet.
+- Decision pending between native, hybrid and a fallback plan. Current leaning:
+  the fallback plan for now, Spinel only for purely numeric subsystems.
+- Treat alias chains on `Graphics.update` (5 to 16 per game) as plain aliases,
+  and event `eval`s as generated methods.
+
+## Performance
+
+- v21.1 kit on a map: about 7.4 ms of logic and 1.2 ms of rendering per frame
+  (PC, llvmpipe). Dominated by `TilemapRenderer#update`, `pbBatteryLow?` (a
+  native `System.power_state` call every frame; `migrate` now installs a cache
+  for it) and `Game_Map#data`. GC: 59 collections, 327 ms over 4 s. In battle:
+  about 0.07 ms of logic and 1.1 ms of rendering.
+- Candidate transformations: avoid `map.data` per tile, avoid redrawing
+  unchanged content.
+- Uranium's language menu redraws everything every frame (`pbDrawShadowText`,
+  `BitmapWrapper#initialize`, bitmap cache, path `canonicalize`). Diagnosed, no
+  fix decided.
+
+## Known gaps
+
+- The `Array#sample(n)` shim matches CRuby for n <= 10. Above that it falls
+  back to a partial Fisher-Yates that may differ from CRuby. No known use in
+  the games we target.

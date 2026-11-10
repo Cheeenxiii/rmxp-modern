@@ -1,94 +1,94 @@
-# Compatibilité
+# Compatibility
 
-Aller-retour testé : `unpack` puis `build`, comparaison avec l'original. « Octet » =
-fichiers reconstruits à l'identique ; « sémantique » = mêmes données, encodage Marshal
-différent (Ruby 1.8 écrivait les flottants avec plus de chiffres) ; « opaque » = fichier
-conservé tel quel car son format binaire n'est pas décodé.
+## Round trip
 
-| Jeu | Famille / version | Aller-retour |
-|---|---|---|
-| Pokémon Uranium 1.4.1 | Essentials v16.2 | 327 fichiers : 315 octet, 12 sémantique, 10 opaque ; scripts ok |
-| Pokémon Insurgence 1.2.7.1 | Essentials v16.2 | 881 fichiers : 878 octet, 3 sémantique, 8 opaque ; scripts ok |
-| Pokémon Reborn 19.5 | Essentials v19.1/v20.1 | 931 fichiers : 930 octet, 1 sémantique, 1 opaque ; scripts ok |
-| Kit Essentials v16.2 | Essentials v16.2 | 110 fichiers : 107 octet, 3 sémantique, 8 opaque ; scripts ok |
-| Kit Essentials v17.2 | Essentials v17.2 | 111 fichiers : 108 octet, 3 sémantique, 8 opaque ; scripts ok |
-| Kit Essentials v19.1 | Essentials v19.1 | 105 fichiers : 104 octet, 1 sémantique ; scripts ok |
-| Kit Essentials v20.1 | Essentials v20.1 | 107 fichiers : 105 octet, 2 sémantique ; scripts ok |
-| Kit Essentials v21.1 | Essentials v21.1 | 109 fichiers : 109 octet ; scripts ok |
+`unpack` then `build`, compared with the original files. See
+[usage.md](usage.md#roundtrip) for what the columns mean.
 
-Uranium et Insurgence sont lus depuis leur archive RGSSAD déchiffrée au préalable
-(`corpus/essentials/*/decrypted/`).
+| Game | Based on | Files | Identical | Equivalent | Opaque | Scripts |
+|---|---|---:|---:|---:|---:|---|
+| Pokémon Uranium 1.4.1 | Essentials v16.2 | 327 | 315 | 12 | 10 | ok |
+| Pokémon Insurgence 1.2.7.1 | Essentials v16.2 | 881 | 878 | 3 | 8 | ok |
+| Pokémon Reborn 19.5 | Essentials v19.1/v20.1 | 931 | 930 | 1 | 1 | ok |
+| Essentials kit v16.2 | | 110 | 107 | 3 | 8 | ok |
+| Essentials kit v17.2 | | 111 | 108 | 3 | 8 | ok |
+| Essentials kit v19.1 | | 105 | 104 | 1 | 0 | ok |
+| Essentials kit v20.1 | | 107 | 105 | 2 | 0 | ok |
+| Essentials kit v21.1 | | 109 | 109 | 0 | 0 | ok |
 
-Audit du Ruby dynamique (détail reproductible avec `bin/rmxp audit JEU`) :
+Uranium and Insurgence ship as RGSSAD archives and were extracted first.
 
-- **Uranium** : alias et fragments d'événements supprimables ; reste 21 `eval`, 12 `send`
-  calculés et 42 `Marshal.dump` dynamiques.
-- **Insurgence** : 21 `eval`, 33 `send` calculés et 76 `Marshal.dump` dynamiques ; 3
-  erreurs de syntaxe d'origine (ancienne syntaxe, événements invalides).
-- **Reborn** : 85 `eval` et 23 `send` calculés dynamiques ; alias, ivars et fragments
-  supprimables.
-- **Kit v21.1** : 9 `eval`, 5 `send` calculés et 25 `Marshal.dump` dynamiques ; le reste
-  (alias, fragments, `Marshal.load`) est supprimable.
-- **PSDK** : audit de code seulement ; 364 alias et 196 accès d'ivars supprimables,
-  166 `send` calculés dynamiques.
+### Opaque files
 
-## Migration pré-v19
+Essentials v16.2 and v17.2 store some data in a custom binary `.dat` format
+(an offset table, not Marshal) that `rmxp` does not decode yet: `items.dat`,
+`moves.dat`, `evolutions.dat`, `dexdata.dat`, `eggEmerald.dat`,
+`regionals.dat`, `attacksRS.dat`, `rsattacks.dat`, `tutor.dat`, `tmpbs.dat` and
+`BackupSave.dat`, depending on the game.
 
-`bin/rmxp migrate` applique les transformations génériques de compatibilité
-(syntaxe 1.8 → 3, regex à octets, `when valeur:`, `break`/`next` hors boucle,
-shims Win32API/Ruby 1.8) puis reconstruit les scripts :
+Reborn's `mons.dat` is Marshal, but it references internal classes
+(`MonDataHash`, `MonWrapper`, `MonData`) that can't be loaded yet.
 
-- **Uranium** : sélection de langue, titre, options, nouvelle partie et **première
-  carte** atteints sur mkxp-z standard ;
-- **Insurgence** : titre, menu, nouvelle partie, intro et **première carte** rendue,
-  sans correctif spécifique au jeu. Au premier lancement d'une copie fraîche,
-  Essentials v16 propose d'installer ses polices ; c'est cosmétique après redémarrage.
+These files are copied byte for byte: the rebuilt game is correct, they are
+just not readable as text.
 
-## Switch (émulateur Eden)
+## Migration to Ruby 3
 
-Le port Switch est vérifié sous Eden (Vulkan/lavapipe), sans carte physique et
-sans mesure de fps représentative :
+Pre-v19 games after `bin/rmxp migrate`, on stock mkxp-z:
 
-- kit v21.1 reconstruit et kit original : écran titre, menu, carte de départ ;
-- Reborn : écran titre puis menu (New Game/Other Save Files/Options/Save Directory/
-  Controls), 40 fps sous émulateur ;
-- Uranium (port warmwinter) : sélection de langue.
+- **Uranium**: language selection, title screen, options, new game and first
+  map.
+- **Insurgence**: title screen, menu, new game, intro and first map, with no
+  game-specific fix. On the first run of a fresh copy, Essentials v16 offers to
+  install its fonts; this is cosmetic and goes away after a restart.
 
-Le Ruby du port Switch n'embarque pas toute la stdlib : `timeout`, `weakref` et
-`delegate` sont fournis par les préloads du port. RubyGems, `net/http` et la gem
-Discord sont remplacés par des stubs : les fonctions qui en dépendent sont
-désactivées (voir ci-dessous).
+Rebuilt v19+ games need no migration; the v21.1 kit and Reborn were checked
+to boot on mkxp-z.
 
-### Limitations Switch connues
+## Nintendo Switch
 
-- **Mises à jour en ligne / vérification de version** : désactivées (`net/http` stub) ;
-  Reborn affiche une erreur `URI` non bloquante dans l'Updater.
-- **GTS, échanges et fonctions en ligne** : indisponibles tant que `net/http` et
-  les sockets ne sont pas fournis.
-- **Discord Rich Presence** : désactivée (stub `discord`).
-- **Gems Ruby** : chargement désactivé (stub RubyGems) ; les scripts qui appellent
-  `gem` au démarrage continuent, mais les gems ne sont pas chargées.
-- **Reborn** : `Input::E/F/D` et `Controller.axes_trigger` viennent d'un shim de
-  compatibilité installé avec le jeu, plus du moteur.
+Tested under the Eden emulator (Vulkan/lavapipe), not on hardware. Frame rates
+under the emulator say nothing about the console.
 
-## Fichiers opaques connus
+- Essentials v21.1 kit, original and rebuilt: title screen, menu, starting map.
+- Reborn: title screen and main menu, 40 fps under the emulator.
+- Uranium (warmwinter's mkxp-z port): language selection.
 
-Essentials v16.2/v17.2 utilisent un format `.dat` binaire maison (table d'offsets, pas du
-Marshal) que l'outil ne décode pas encore : `items.dat`, `moves.dat`, `evolutions.dat`,
-`dexdata.dat`, `eggEmerald.dat`, `regionals.dat`, `attacksRS.dat`, `rsattacks.dat`,
-`tutor.dat`, `tmpbs.dat`, `BackupSave.dat` selon le jeu.
+The Ruby in the Switch port does not ship the full standard library.
+`timeout`, `weakref` and `delegate` are provided as preload scripts. RubyGems,
+`net/http` and the Discord gem are replaced with stubs, so these features are
+off:
 
-Reborn : `mons.dat` est du Marshal mais référence des classes internes
-(`MonDataHash`, `MonWrapper`, `MonData`) dont le chargement n'est pas encore résolu.
+- online updates and version checks (Reborn's updater shows a non-blocking
+  `URI` error);
+- GTS, trades and other online features;
+- Discord Rich Presence;
+- loading gems: scripts that call `gem` at startup keep going, but nothing is
+  loaded.
 
-Ces fichiers sont copiés octet pour octet : le jeu reconstruit est fidèle, mais ils ne
-sont pas lisibles en texte.
+Reborn also needs `Input::E/F/D` and `Controller.axes_trigger`, which come from
+a compatibility shim installed with the game rather than from the engine.
 
-## Non traité
+## Dynamic Ruby
 
-- Pokémon SDK (formats VD `.dat`, scripts YARB) : reconnaissance seulement.
-- Archives chiffrées RGSSAD/RGSS2A/RGSS3A : outil externe requis (voir `docs/usage.md`).
-- Démarrage des jeux reconstruits : kit v21.1 et Reborn vérifiés sous mkxp-z ; Uranium
-  passe par le portage warmwinter et les assets d'origine.
-- Les captures Switch sont faites sous Eden ; les fps de l'émulateur ne sont pas
-  représentatifs de la console.
+What `bin/rmxp audit` reports as `dynamic`, the constructs a native compiler
+would have to support as is:
+
+| Game | `eval` | computed `send` | `Marshal.dump` |
+|---|---:|---:|---:|
+| Uranium | 21 | 12 | 42 |
+| Insurgence | 21 | 33 | 76 |
+| Reborn | 85 | 23 | – |
+| Essentials kit v21.1 | 9 | 5 | 25 |
+| Pokémon SDK (code only) | – | 166 | – |
+
+A dash means the count was not recorded. Most other uses (aliases, event
+fragments, `Marshal.load`, ...) are `static`; run `bin/rmxp audit` for the
+full breakdown. Insurgence also has 3 syntax errors in its original
+scripts (old syntax, broken events). Pokémon SDK has 364 aliases and 196 ivar
+accesses, all `static`.
+
+## Not supported
+
+- Pokémon SDK data (VD `.dat` files, YARB scripts).
+- Encrypted archives (RGSSAD, RGSS2A, RGSS3A): extract them first.

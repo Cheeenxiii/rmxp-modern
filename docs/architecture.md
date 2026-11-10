@@ -1,88 +1,96 @@
 # Architecture
 
-## Pipeline
+## Code layout
 
-```
-unpack  jeu (Data/, Scripts/) ──► projet texte (YAML + .rb)
-build   projet texte ─────────► jeu (Data/, Scripts/)
-```
-
-Chaque étape est une commande de `bin/rmxp` ; `lib/` est découpé pour qu'une famille de
-jeux puisse avoir ses formats sans contaminer le reste.
-
-## Fichiers
-
-| Fichier | Rôle |
+| Path | Role |
 |---|---|
-| `bin/rmxp` | interface en ligne de commande |
-| `lib/rmxp/project.rb` | arborescence d'un jeu : `Data/`, `Scripts/`, manifeste, commandes `unpack`/`build`/`roundtrip` |
-| `lib/rmxp/codec.rb` | conversion Marshal ↔ arbre YAML, classes inconnues, références partagées |
-| `lib/rmxp/scripts.rb` | `Scripts.rxdata` ↔ un `.rb` par section, avec l'ordre et les identifiants |
-| `lib/rmxp/rgss.rb` | types RGSS à format Marshal propre (Table, Color, Tone, Rect, Font) |
-| `lib/rmxp/check.rb` | compilation statique des scripts et des fragments d'événements (Prism) |
-| `lib/rmxp/audit.rb` | inventaire du Ruby dynamique (eval, send, alias, Marshal...) |
-| `lib/rmxp/mt19937.rb` | MT19937 et conversions CRuby (`rand`, `rand(n)`, `rand(range)`, flottants) |
-| `lib/rmxp/preload/` | shim RNG et sonde de scénario chargés par mkxp-z |
+| `bin/rmxp` | command line |
+| `lib/rmxp/project.rb` | game directory to text project and back: `unpack`, `build`, `roundtrip` |
+| `lib/rmxp/codec.rb` | Marshal to YAML tree and back, unknown classes, shared references |
+| `lib/rmxp/scripts.rb` | `Scripts.rxdata` to one `.rb` file per section, with order and ids |
+| `lib/rmxp/rgss.rb` | RGSS types with their own Marshal format (Table, Color, Tone, Rect, Font) |
+| `lib/rmxp/check.rb` | parses scripts and event script fragments with Prism |
+| `lib/rmxp/audit.rb` | counts dynamic Ruby constructs |
+| `lib/rmxp/migrate.rb` | ports pre-v19 games to Ruby 3 |
+| `lib/rmxp/mt19937.rb` | CRuby's random number generator, in Ruby |
+| `lib/rmxp/preload/compat/` | shims that `migrate` installs into games |
+| `lib/rmxp/preload/` | RNG shim and scenario probe, loaded by mkxp-z in tests |
+| `patches/` | mkxp-z patches, desktop and Switch |
+| `test/` | tests, plus the battle and headless harnesses (see [development.md](development.md)) |
 
-## Représentation texte
+## Text format
 
-`Codec` transforme un graphe Marshal en un arbre de Hash/Array/String/nombres, puis en
-YAML. Il préserve :
+A project is a `manifest.yml`, a `scripts.yml` and two directories: `data/`
+and `scripts/`.
 
-- la classe de chaque objet et tous ses ivars, dans l'ordre de déclaration ;
-- les références partagées et les cycles (`__id__` / `__ref__`) ;
-- l'encodage des chaînes (`__str__` + `__enc__`, ou `__b64__` pour le binaire) ;
-- les types RGSS à payload binaire, conservés tels quels (`__blob__`) ;
-- les `Time` (via leur Marshal interne, `__time__`).
+### Data files
 
-La règle de vérification est la stabilité de l'arbre : `to_tree(from_tree(tree)) == tree`.
-L'égalité octet pour octet est mesurée et visée, mais pas garantie : Ruby 1.8 (RMXP)
-sérialisait les flottants avec plus de chiffres que Ruby 3.
+Each Marshal file becomes a YAML document:
 
-### Classes inconnues
+```yaml
+format: 1
+value: ...
+```
 
-Les données RMXP référencent des classes que l'outil n'implémente pas. `load_bytes`
-relit l'erreur de Marshal pour définir des classes vides, puis essaie les superclasses
-possibles quand Marshal signale un sous-type de `Array`, `Hash` ou `String` (il ne dit pas
-laquelle). Les classes à format Marshal propre (ex. `OrderedHash`, `WordArray`
-d'Essentials, `MonDataHash` de Reborn) sont conservées comme blobs opaques.
+`value` is a tree of plain YAML values. `nil`, booleans, integers, floats,
+arrays and UTF-8 strings are written as they are. Everything else is a mapping
+with tagged keys:
 
-Les fichiers d'un même jeu ne s'accordent pas toujours sur la forme d'une classe (deux
-builds ont pu la sérialiser différemment). Les classes créées sont donc oubliées entre
-deux fichiers : chaque fichier obtient la forme dont il a besoin.
+| Node | Meaning |
+|---|---|
+| `__class__`, `__ivars__` | object of a class, with its instance variables in declaration order |
+| `__builtin__` + `__array__` / `__hash__` / `__str__` | subclass of Array, Hash or String |
+| `__hash__`, `__default__` | Hash, as a list of `[key, value]` pairs, and its default value |
+| `__str__`, `__enc__` | ASCII string in another encoding than UTF-8 (often `ASCII-8BIT`) |
+| `__b64__`, `__enc__` | non-ASCII string that isn't valid UTF-8, in Base64 |
+| `__sym__` | Symbol |
+| `__float__` | `NaN`, `Infinity` or `-Infinity` |
+| `__blob__` | Marshal payload of a class with its own `_dump` (Table, Color, ...), in Base64 |
+| `__time__` | Time, as its Marshal dump in Base64 |
+| `__id__`, `__ref__` | an object that appears more than once gets an `__id__`; other occurrences are `__ref__` |
 
-### Fichiers non reconstituables
+The rule that `unpack` enforces is that the tree is stable:
+`to_tree(from_tree(tree)) == tree`. Byte-identical output is the goal and
+usually holds, but it can't be guaranteed: Ruby 1.8 wrote floats with more
+digits than Ruby 3.
 
-Quand un fichier ne peut pas être chargé, `unpack` le copie octet pour octet dans
-`data/<fichier>.bin` et le marque `opaque` dans le manifeste. Cela couvre les `.dat`
-binaires maison d'Essentials v16/v17. Le build les recopie tels quels : l'aller-retour
-reste fidèle, ils ne sont simplement pas lisibles.
+### Unknown classes
 
-## Scripts
+Game data references classes that `rmxp` doesn't define (`RPG::Actor`, and
+many game-specific ones). `Codec.load_bytes` reads the class name from
+Marshal's error, defines an empty class and retries. When Marshal reports that
+a class should be a subclass of Array, Hash or String without saying which,
+it tries each candidate. Classes with their own Marshal format (Essentials'
+`OrderedHash` and `WordArray`, Reborn's `MonDataHash`) are kept as blobs.
 
-`Scripts.rxdata` est un tableau Marshal `[identifiant, nom, source zlib]`. `scripts.rb`
-extrait chaque source en `.rb` et `scripts.yml` garde l'ordre et les identifiants.
-Pour les jeux à scripts externes (Reborn), `Scripts/` est copié sous
-`scripts_tree/` et recopié par le build ; `Scripts.rxdata` suit le chemin normal.
+Files from the same game don't always agree on a class's shape: two builds of
+the game may have dumped it differently. Stub classes are therefore removed
+after each file.
 
-## Déterminisme
+### Opaque files
 
-`mt19937.rb` reproduit le générateur de CRuby (bits bruts, `Kernel#rand`,
-`Random#rand`, plages entières et flottantes) : vérifié sur des millions de tirages
-contre CRuby. `preload/deterministic_random.rb` remplace `Kernel#rand`, `srand`,
-les méthodes de classe de `Random` et `sample`/`shuffle` dans mkxp-z.
-`preload/scenario.rb` mesure les frames et écrit un dump d'état ; il est chargé par
-`test/headless_test.rb` (mkxp-z sous Xvfb, `SRCDIR` = dossier du jeu).
+A file that can't be loaded is copied byte for byte to `data/<file>.bin` and
+marked `opaque` in the manifest. `build` copies it back, so the round trip is
+still exact.
 
-Le hook de frames est un alias-chain installé en preload : `Graphics.update` est
-sauvegardé puis remplacé. Essentials aliase ensuite `update` dans
-`update_KGC_SpecialTransition` avant de redéfinir `Graphics.update` ; c'est donc notre
-wrapper que son alias capture, et il appelle la méthode C d'origine. Un `prepend` sur
-`Graphics` provoque une récursion infinie (notre `super` retombe sur la redéfinition
-d'Essentials).
+### Scripts
 
-## Ce qui n'est pas ici
+`Scripts.rxdata` is a Marshal array of `[id, name, zlib source]`. Each section
+becomes `scripts/NNNN_<name>.rb`, and `scripts.yml` keeps the order, ids and
+names. Games with an external `Scripts/` directory (Reborn) get it copied to
+`scripts_tree/`.
 
-- Déchiffrement d'archives : outil externe (`RPGMakerDecrypter`).
-- Formats proprement dits (lecture RGSSAD, VD/YARB de PSDK).
-- Migration de syntaxe et exécution des jeux reconstruits.
+## Determinism
+
+Battles and many events call `rand`. To compare a game before and after a
+transformation, both runs must draw the same numbers. `lib/rmxp/mt19937.rb`
+reimplements CRuby's generator and its conversions (`Kernel#rand`,
+`Random#rand`, integer and float ranges); `test/mt19937_test.rb` checks it
+against CRuby over millions of draws. `lib/rmxp/preload/deterministic_random.rb`
+installs it in mkxp-z in place of `rand`, `srand`, `Random` and Array's
+`sample`/`shuffle`.
+
+## Not handled
+
+- Decrypting archives: out of scope, use an external tool.
+- Pokémon SDK formats (VD, YARB): not yet.

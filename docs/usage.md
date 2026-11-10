@@ -1,122 +1,129 @@
-# Utilisation
+# Usage
 
-## Prérequis
+All commands take a game directory, the one that contains `Data/` (and
+`Scripts/` for games with external scripts, such as Reborn). Commands that
+need scratch space write it under `tmp/` unless you pass a work directory.
 
-Ruby 3.3+ (Marshal et YAML sont fournis avec Ruby). Rien d'autre à installer.
-
-## Extraire un jeu
-
-```bash
-bin/rmxp unpack chemin/vers/le/jeu sortie/
-```
-
-Le jeu est lu depuis `jeu/Data/` et `jeu/Scripts/` (s'il existe). La sortie contient :
-
-```
-sortie/
-  manifest.yml        liste des fichiers, formats et ordre des scripts
-  data/               un fichier YAML par fichier de données
-  scripts/            un fichier .rb par section de Scripts.rxdata
-  scripts.yml         ordre, identifiants et noms des scripts
-  scripts_tree/       copie de Scripts/ si le jeu en a un (Reborn)
-```
-
-`data/<fichier>.yaml` correspond à `Data/<fichier>` ; le nom d'origine est conservé
-(par exemple `data/Actors.rxdata.yaml`). Les fichiers dont le format n'est pas
-reconstituable (anciens `.dat` binaires d'Essentials v16/v17, données propres à un jeu)
-sont conservés en l'état dans `data/<fichier>.bin` et signalés `opaque` dans le manifeste.
-
-## Reconstruire un jeu
+## unpack
 
 ```bash
-bin/rmxp build sortie/ jeu_reconstruit/
+bin/rmxp unpack GAME OUT
 ```
 
-Écrit `jeu_reconstruit/Data/` (et `Scripts/` si présent). Les ressources graphiques et
-audio ne sont pas concernées : pour rejouer le jeu, copiez-les à côté ou reconstituez
-l'arborescence complète.
+Writes a text project to `OUT`:
 
-## Vérifier l'aller-retour
+```
+OUT/
+  manifest.yml        files, formats and script order
+  data/               one YAML file per Data/ file
+  scripts/            one .rb file per Scripts.rxdata section
+  scripts.yml         script order, ids and names
+  scripts_tree/       copy of Scripts/, if the game has one
+```
+
+`data/<file>.yaml` holds `Data/<file>`, keeping the original name
+(`data/Actors.rxdata.yaml`). Files that can't be decoded, such as the custom
+binary `.dat` files of Essentials v16/v17, are copied as is to
+`data/<file>.bin` and marked `opaque` in the manifest. The YAML format is
+described in [architecture.md](architecture.md#text-format).
+
+## build
 
 ```bash
-bin/rmxp roundtrip chemin/vers/le/jeu
+bin/rmxp build PROJECT OUT
 ```
 
-Extrait, reconstruit et compare avec l'original, sans modifier le jeu. Le rapport donne :
+Writes `OUT/Data/` (and `OUT/Scripts/` if the project has one). Graphics and
+audio are not part of the project: to play the result, copy the game's other
+directories next to it.
 
-- `fichiers` : nombre de fichiers de données traités ;
-- `octet` : fichiers reconstruits à l'identique, octet pour octet ;
-- `sémantique` : fichiers équivalents mais dont l'encodage Marshal diffère (Ruby 1.8
-  écrivait les flottants avec plus de chiffres, par exemple) ;
-- `opaque` : fichiers conservés en binaire (voir plus haut) ;
-- `scripts` : `ok` si les sources et l'ordre des scripts sont identiques.
-
-Code de sortie non nul au premier écart.
-
-## Vérifier que le code compile
+## roundtrip
 
 ```bash
-bin/rmxp check chemin/vers/le/jeu
+bin/rmxp roundtrip GAME [WORKDIR]
 ```
 
-Extrait le jeu, parse chaque script avec Prism et chaque fragment de script
-d'événement (les commandes 355/655 consécutives sont recollées comme le fait
-l'interpréteur). Rapport :
+Unpacks, rebuilds and compares with the original, without touching the game.
 
 ```
-scripts: 402 (+0 erreur(s)), événements: 1112 fragment(s) (+0 erreur(s))
+Pokemon Essentials v21.1 2023-07-30      files=109  identical=109 equivalent=0 opaque=0 scripts=ok
 ```
 
-Code de sortie non nul s'il reste une erreur de syntaxe.
+- `identical`: rebuilt byte for byte;
+- `equivalent`: same data, different Marshal bytes. RMXP's Ruby 1.8 wrote
+  floats with more digits than Ruby 3 does;
+- `opaque`: copied as is (see above);
+- `scripts`: `ok` if script sources and order are unchanged.
 
-## Migrer un jeu pré-v19
+Exits with a non-zero status on the first mismatch.
 
-`migrate` copie le jeu, externalise `Scripts.rxdata`, applique les transformations
-de compatibilité génériques (regex à échappements d'octets, `when valeur:` de Ruby 1.8, `break`/`next`
-hors boucle, `Thread.critical`, shims Win32API/Ruby 1.8, `TEMP`) puis reconstruit les scripts. Le jeu source n'est pas modifié.
+## check
 
 ```bash
-bin/rmxp migrate JEU SORTIE
+bin/rmxp check GAME [WORKDIR]
 ```
 
-Le dossier de sortie doit contenir les assets du jeu (Graphics, Audio, Fonts) ;
-pour Uranium, partir d'une copie complète du jeu ou du port warmwinter.
-La migration installe aussi un cache générique de `System.power_state` (5 s par
-défaut, `RMXP_POWER_CACHE_SECONDS=0` pour le désactiver) : les jeux Essentials
-qui testent la batterie à chaque frame y gagnent beaucoup sur les plateformes
-où `SDL_GetPowerInfo` est coûteux.
+Parses every script with Prism, and every script fragment in events. Event
+commands 355/655 that follow each other are joined into one script, as the
+interpreter does.
 
-## Auditer le Ruby dynamique
+```
+scripts: 402 (0 error(s)), events: 1112 fragment(s) (0 error(s))
+```
+
+Exits with a non-zero status if any syntax error is left.
+
+## audit
 
 ```bash
-bin/rmxp audit chemin/vers/le/jeu
+bin/rmxp audit GAME [WORKDIR]
+bin/rmxp audit --scripts DIR
 ```
 
-Compte par jeu les constructions qui gênent une compilation AOT : `eval`,
-`send`/`__send__` calculés, `define_method`, `method_missing`, `alias`,
-`Marshal`, `const_get`/`const_set`, `ObjectSpace`, etc. Les fragmentation
-d'événements sont incluses. Sortie : nombre de sources analysées puis compteurs
-non nuls.
+Counts the Ruby constructs that get in the way of ahead-of-time compilation:
+`eval`, computed `send`, `define_method`, `method_missing`, `alias`, `Marshal`,
+`const_get`/`const_set`, `instance_variable_get`/`set`, `ObjectSpace`. Event
+script fragments are included. Each use is classed as:
 
-## Jeux en archive RGSSAD
+- `static`: the target is known at build time and can be replaced with a
+  direct call or generated code;
+- `enumerable`: the target is computed but comes from a finite set known at
+  build time;
+- `dynamic`: anything else.
 
-`rmxp` ne déchiffre pas les archives (ce n'est pas dans le périmètre du projet).
-Utiliser `RPGMakerDecrypter` (déjà cloné dans `vendor/` si vous suivez AGENTS.md) :
+`--scripts` audits a directory of `.rb` files directly (Pokémon SDK, for
+instance).
+
+## migrate
 
 ```bash
-vendor/tools/rpgmakerdecrypter-cli jeu/Game.rgssad --output=jeu_dechiffre/
-bin/rmxp roundtrip jeu_dechiffre/
+bin/rmxp migrate GAME OUT
 ```
 
-## Jeux déjà en texte
+Copies a pre-v19 Essentials game to `OUT` and ports its scripts to Ruby 3, for
+[mkxp-z](https://github.com/mkxp-z/mkxp-z). The source game is not modified.
 
-Pour les jeux dont les scripts sont des fichiers `.rb` (Reborn, projets Essentials
-v19+ issus du dépôt officiel), `unpack` conserve `Scripts/` tel quel et
-`build` le recopie. `Scripts.rxdata` n'est réécrit que s'il existe.
+The transformations are generic, never specific to one game:
 
-## Limites connues
+- regexps with byte escapes, and the `/n` flag on interpolated regexps;
+- Ruby 1.8's `when value:` syntax;
+- `break`/`next` outside a loop;
+- `read(1)[0]`, which returned a byte in Ruby 1.8;
+- `StringInput#getc`, for the same reason.
 
-- Formats d'archives non gérés : RGSSAD, RGSS2A, RGSS3A (outil externe requis).
-- Les `.dat` binaires d'Essentials avant v19 ne sont pas convertis en texte (voir
-  [compatibility.md](compatibility.md)).
-- PSDK n'est pas encore traité.
+It also installs preload scripts in `OUT/preload/` and registers them in
+`mkxp.json`: Win32API and Ruby 1.8 shims (`Thread.critical`, `ENV["TEMP"]`,
+...), and a cache for `System.power_state`. Essentials checks the battery every
+frame, which is slow on platforms where `SDL_GetPowerInfo` is expensive. The
+cache refreshes every 5 seconds; set `RMXP_POWER_CACHE_SECONDS=0` to disable
+it.
+
+`migrate` copies the whole game directory, so run it on a complete game
+(with Graphics, Audio and Fonts), not on a directory that only has `Data/`.
+
+## Encrypted games
+
+`rmxp` does not read `Game.rgssad` (or `.rgss2a`/`.rgss3a`) archives. Extract
+them first, for example with
+[RPGMakerDecrypter](https://github.com/uuksu/RPGMakerDecrypter), then run
+`rmxp` on the extracted directory.
