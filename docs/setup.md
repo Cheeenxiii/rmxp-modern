@@ -104,6 +104,10 @@ small kit is the safe case.
 The script needs `script/setup` to have run once, and either devkitPro in the
 environment or Docker with the `devkitpro/devkita64:20251117` image.
 
+Game-side preloads travel with the game: if a game needs one (Reborn's
+`Input::E/F/D` shim, for instance), put it in the game's `preload/` folder and
+list it in the game's `mkxp.json` before running `script/switch-build`.
+
 Controls go through mkxp-z's usual bindings, following the Nintendo labels:
 A confirms and B cancels. ZL, ZR and minus are bound to F5, F6 and F7, which
 some games read as `Input::E`, `F` and `D`. MIDI music is skipped, and HTTP
