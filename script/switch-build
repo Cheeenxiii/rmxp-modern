@@ -79,6 +79,12 @@ mkdir -p "$romfs/game"
 echo "staging $game in the RomFS"
 cp -a "$game/." "$romfs/game/"
 chmod -R u+w "$romfs/game"
+# MIDI music is rendered to OGG once here, so the Switch (which skips MIDI)
+# still has music. No-op when the game has no MIDI or fluidsynth is missing.
+if command -v ruby >/dev/null; then
+  ruby -I "$root/lib" -r rmxp/midi -e 'Rmxp::Midi.convert(ARGV[0])' "$romfs/game" || true
+fi
+
 # The console perf probe is test-only: never in a default build, opt in with
 # --perf-probe.
 rm -f "$romfs/game/preload/zz_switch_perf.rb"

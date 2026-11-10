@@ -99,12 +99,16 @@ script/switch-build out/game Uranium.nro --name "Pokémon Uranium" --icon cover.
 ```
 
 The RomFS is read-only, so the first launch copies the game once to
-`sdmc:/switch/mkxp-z/<name>/` and runs it from there; a rebuild of the `.nro`
-reinstalls the game when its `Game.ini` or `Scripts.rxdata` changes. The
-engines' log is written in that installed folder (or `sdmc:/switch/mkxp-z/`
-when the game runs from the RomFS). A large game makes a large `.nro` (the
-whole game is embedded), which may exceed what the Homebrew Menu can load; a
-small kit is the safe case.
+`sdmc:/switch/mkxp-z/<name>/` and runs it from there. The screen shows an
+"Installing ..." progress bar while it copies. The installed copy is marked
+with a version file after a successful copy, so the next launches start
+immediately; a rebuilt `.nro` reinstalls only when its `Game.ini` or
+`Scripts.rxdata` changes. A failed install is retried on the next launch and
+its file errors are listed in `sdmc:/switch/mkxp-z/install.log`. The engine's
+log is written in the installed folder (or `sdmc:/switch/mkxp-z/` when the
+game runs from the RomFS). A large game makes a large `.nro` (the whole game
+is embedded), which may exceed what the Homebrew Menu can load; a small kit is
+the safe case.
 
 The script needs `script/setup` to have run once, and either devkitPro in the
 environment or Docker with the `devkitpro/devkita64:20251117` image.
@@ -114,13 +118,19 @@ Game-side preloads travel with the game: if a game needs one (Reborn's
 list it in the game's `mkxp.json` before running `script/switch-build`.
 
 For a console calibration session, `script/switch-build --perf-probe` adds a
-test-only probe (`preload/zz_switch_perf.rb`) that writes `RMXP_PERF` frame
-times to `mkxp-z.log` every few seconds. Default `.nro` builds and
-`bin/rmxp package` never include it.
+test-only probe (`preload/zz_switch_perf.rb`) that writes `RMXP_PERF` lines to
+`mkxp-z.log` every few seconds: `frames` (per 5 s window, so fps = frames / 5),
+`avg` (wall time inside `Graphics.update`, waiting included), `cpu` (process
+CPU per frame, the work measure for PC/console comparison) and `worst`.
+Default `.nro` builds and `bin/rmxp package` never include it.
+
+`script/switch-build` and `bin/rmxp package` also render the game's MIDI music
+to OGG when `fluidsynth` (or `timidity`) and the game's soundfont are
+available, because the Switch port skips MIDI; the `.mid` files are kept.
 
 Controls go through mkxp-z's usual bindings, following the Nintendo labels:
 A confirms and B cancels. ZL, ZR and minus are bound to F5, F6 and F7, which
-some games read as `Input::E`, `F` and `D`. MIDI music is skipped, and HTTP
+some games read as `Input::E`, `F` and `D`. MIDI music is converted to OGG at build time when a renderer is available (otherwise it is skipped), and HTTP
 requests return nothing.
 
 Each launch writes the engine's and the game's output to `mkxp-z.log` in the

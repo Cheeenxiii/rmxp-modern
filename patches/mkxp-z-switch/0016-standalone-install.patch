@@ -1,0 +1,342 @@
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -289,52 +289,6 @@
+   return text;
+ }
+ 
+-// RomFS is read-only, and the games write saves and temporary files next to
+-// their data. A console build is therefore copied to the SD card once.
+-bool switchCopyTree(const std::string &src, const std::string &dst) {
+-  DIR *dir = opendir(src.c_str());
+-  if (!dir)
+-    return false;
+-  mkdir(dst.c_str(), 0777);
+-  bool ok = true;
+-  while (struct dirent *entry = readdir(dir)) {
+-    const char *name = entry->d_name;
+-    if (!std::strcmp(name, ".") || !std::strcmp(name, ".."))
+-      continue;
+-    std::string from = src + "/" + name;
+-    std::string to = dst + "/" + name;
+-    struct stat info;
+-    bool is_dir = stat(from.c_str(), &info) == 0 && S_ISDIR(info.st_mode);
+-    if (is_dir) {
+-      ok = switchCopyTree(from, to) && ok;
+-      continue;
+-    }
+-    FILE *in = std::fopen(from.c_str(), "rb");
+-    if (!in) {
+-      ok = false;
+-      continue;
+-    }
+-    FILE *out = std::fopen(to.c_str(), "wb");
+-    if (!out) {
+-      std::fclose(in);
+-      ok = false;
+-      continue;
+-    }
+-    char buffer[64 * 1024];
+-    size_t count;
+-    while ((count = std::fread(buffer, 1, sizeof(buffer), in)) > 0) {
+-      if (std::fwrite(buffer, 1, count, out) != count) {
+-        ok = false;
+-        break;
+-      }
+-    }
+-    std::fclose(in);
+-    std::fclose(out);
+-  }
+-  closedir(dir);
+-  return ok;
+-}
+-
+ // Keeps the folder name usable on FAT and without shell metacharacters.
+ std::string switchSlug(const std::string &name) {
+   std::string slug;
+@@ -350,27 +304,6 @@
+   return slug;
+ }
+ 
+-// Standalone build: the game travels inside the .nro's RomFS. It is installed
+-// once under sdmc:/switch/mkxp-z/<name>/ and updated when the .nro changes.
+-std::string switchInstallRomFSGame() {
+-  std::string name = switchReadTextFile("romfs:/name.txt");
+-  if (name.empty())
+-    name = "game";
+-  std::string dest = "sdmc:/switch/mkxp-z/" + switchSlug(name);
+-  std::string version = switchReadTextFile("romfs:/version.txt");
+-  std::string installedVersion = switchReadTextFile((dest + "/version.txt").c_str());
+-  if (!switchFileExists((dest + "/Game.ini").c_str()) || version != installedVersion) {
+-    if (switchCopyTree("romfs:/game", dest) && !version.empty()) {
+-      FILE *file = std::fopen((dest + "/version.txt").c_str(), "wb");
+-      if (file) {
+-        std::fwrite(version.c_str(), 1, version.size(), file);
+-        std::fclose(file);
+-      }
+-    }
+-  }
+-  return dest;
+-}
+-
+ // Game folder search order for console builds:
+ // 1. the game inside the .nro's RomFS (standalone console build);
+ // 2. the folder passed as the first argument (forwarder);
+@@ -378,7 +311,12 @@
+ // 4. sdmc:/switch/mkxp-z/game/ (fixed location).
+ void switchResolveDataDir(char *dataDir, size_t size, int argc, char *argv[]) {
+   if (switchFileExists("romfs:/game/Game.ini")) {
+-    std::string installed = switchInstallRomFSGame();
++    // script/switch-build puts the game in the RomFS and name.txt next to it;
++    // switch_main.cpp installs it to this folder before main() runs.
++    std::string name = switchReadTextFile("romfs:/name.txt");
++    if (name.empty())
++      name = "game";
++    std::string installed = "sdmc:/switch/mkxp-z/" + switchSlug(name);
+     std::strncpy(dataDir, installed.c_str(), size - 1);
+     return;
+   }
+--- a/switch/switch_main.cpp
++++ b/switch/switch_main.cpp
+@@ -1,12 +1,239 @@
+ // Nintendo Switch (libnx) process setup: mount the .nro's RomFS, which holds
+-// the preload scripts (see src/main.cpp). Based on GQster's mkxp-z Switch
+-// port.
++// the game of a standalone build and the preload scripts (see src/main.cpp).
++// Based on GQster's mkxp-z Switch port.
+ #ifdef __SWITCH__
+ // libnx's headers include <assert.h>; keep Ruby's from being picked up
+ #define RUBY_ASSERT_H 1
+ #include <switch.h>
++#include <dirent.h>
++#include <sys/stat.h>
++#include <cstdio>
++#include <cstring>
++#include <string>
++#include <unistd.h>
++
++namespace {
++
++bool fileExists(const std::string &path) {
++  FILE *file = std::fopen(path.c_str(), "rb");
++  if (!file)
++    return false;
++  std::fclose(file);
++  return true;
++}
++
++std::string readText(const std::string &path) {
++  FILE *file = std::fopen(path.c_str(), "rb");
++  if (!file)
++    return std::string();
++  std::string text;
++  char buffer[256];
++  size_t count;
++  while ((count = std::fread(buffer, 1, sizeof(buffer), file)) > 0)
++    text.append(buffer, count);
++  std::fclose(file);
++  while (!text.empty() && (text.back() == '\n' || text.back() == '\r'))
++    text.pop_back();
++  return text;
++}
++
++// Folder name usable on FAT and without shell characters.
++std::string slug(const std::string &name) {
++  std::string out;
++  for (char c : name) {
++    if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
++        (c >= '0' && c <= '9') || c == '.' || c == '-' || c == '_')
++      out.push_back(c);
++    else if (c == ' ')
++      out.push_back('_');
++  }
++  return out.empty() ? "game" : out;
++}
++
++long long treeSize(const std::string &path) {
++  DIR *dir = opendir(path.c_str());
++  if (!dir)
++    return 0;
++  long long total = 0;
++  while (struct dirent *entry = readdir(dir)) {
++    if (!std::strcmp(entry->d_name, ".") || !std::strcmp(entry->d_name, ".."))
++      continue;
++    std::string child = path + "/" + entry->d_name;
++    struct stat info;
++    if (stat(child.c_str(), &info) != 0)
++      continue;
++    if (S_ISDIR(info.st_mode))
++      total += treeSize(child);
++    else
++      total += info.st_size;
++  }
++  closedir(dir);
++  return total;
++}
++
++void removeTree(const std::string &path) {
++  DIR *dir = opendir(path.c_str());
++  if (!dir) {
++    remove(path.c_str());
++    return;
++  }
++  while (struct dirent *entry = readdir(dir)) {
++    if (!std::strcmp(entry->d_name, ".") || !std::strcmp(entry->d_name, ".."))
++      continue;
++    std::string child = path + "/" + entry->d_name;
++    struct stat info;
++    if (stat(child.c_str(), &info) == 0 && S_ISDIR(info.st_mode))
++      removeTree(child);
++    else
++      remove(child.c_str());
++  }
++  closedir(dir);
++  rmdir(path.c_str());
++}
++
++struct InstallStats {
++  long long total = 0;
++  long long copied = 0;
++  int failed = 0;
++  FILE *log = nullptr;
++  int percentShown = -1;
++};
++
++void logFailure(InstallStats &stats, const std::string &path) {
++  stats.failed++;
++  if (stats.log)
++    std::fprintf(stats.log, "failed: %s\n", path.c_str());
++}
++
++void showProgress(InstallStats &stats) {
++  int percent = stats.total > 0 ? (int)(stats.copied * 100 / stats.total) : 100;
++  int step = percent / 10;
++  if (step == stats.percentShown)
++    return;
++  stats.percentShown = step;
++  std::printf("  %3d%%  [", percent);
++  for (int i = 0; i < 10; i++)
++    std::printf(i < step ? "#" : " ");
++  std::printf("]\n");
++  consoleUpdate(NULL);
++}
++
++bool copyTree(const std::string &src, const std::string &dst, InstallStats &stats) {
++  DIR *dir = opendir(src.c_str());
++  if (!dir) {
++    logFailure(stats, src);
++    return false;
++  }
++  mkdir(dst.c_str(), 0777);
++  bool ok = true;
++  while (struct dirent *entry = readdir(dir)) {
++    if (!std::strcmp(entry->d_name, ".") || !std::strcmp(entry->d_name, ".."))
++      continue;
++    std::string from = src + "/" + entry->d_name;
++    std::string to = dst + "/" + entry->d_name;
++    struct stat info;
++    if (stat(from.c_str(), &info) != 0) {
++      logFailure(stats, from);
++      ok = false;
++      continue;
++    }
++    if (S_ISDIR(info.st_mode)) {
++      ok = copyTree(from, to, stats) && ok;
++      continue;
++    }
++    FILE *in = std::fopen(from.c_str(), "rb");
++    if (!in) {
++      logFailure(stats, from);
++      ok = false;
++      continue;
++    }
++    FILE *out = std::fopen(to.c_str(), "wb");
++    if (!out) {
++      logFailure(stats, from);
++      std::fclose(in);
++      ok = false;
++      continue;
++    }
++    char buffer[64 * 1024];
++    size_t count;
++    while ((count = std::fread(buffer, 1, sizeof(buffer), in)) > 0) {
++      if (std::fwrite(buffer, 1, count, out) != count) {
++        logFailure(stats, from);
++        ok = false;
++        break;
++      }
++      stats.copied += count;
++      showProgress(stats);
++    }
++    std::fclose(in);
++    std::fclose(out);
++  }
++  closedir(dir);
++  return ok;
++}
++
++// A standalone .nro carries the game in its read-only RomFS, but the games
++// write saves and temporary files next to their data. Install once to
++// sdmc:/switch/mkxp-z/<name>/ and reinstall only when the .nro's version marker
++// changes. The copy goes to <dest>.tmp first, so an interrupted installation
++// never leaves a half game that would look "already installed".
++void installStandaloneGame(void) {
++  if (!fileExists("romfs:/game/Game.ini"))
++    return;
++  std::string name = readText("romfs:/name.txt");
++  if (name.empty())
++    name = "game";
++  std::string dest = "sdmc:/switch/mkxp-z/" + slug(name);
++  std::string version = readText("romfs:/version.txt");
++  if (fileExists(dest + "/Game.ini") && readText(dest + "/version.txt") == version)
++    return;
++
++  mkdir("sdmc:/switch/mkxp-z", 0777);
++  consoleInit(NULL);
++  consoleClear();
++  std::printf("Installing %s to the SD card\n\n", name.c_str());
++  consoleUpdate(NULL);
++
++  removeTree(dest);
++  InstallStats stats;
++  stats.total = treeSize("romfs:/game");
++  stats.log = std::fopen("sdmc:/switch/mkxp-z/install.log", "w");
++  copyTree("romfs:/game", dest, stats);
++
++  // The version marker is written last: an interrupted install has no marker
++  // and is retried next launch, instead of looking complete.
++  bool installed = stats.failed == 0 && fileExists(dest + "/Game.ini");
++  if (installed) {
++    FILE *file = std::fopen((dest + "/version.txt").c_str(), "wb");
++    if (file) {
++      std::fwrite(version.c_str(), 1, version.size(), file);
++      std::fclose(file);
++    }
++  }
++  if (stats.log) {
++    std::fprintf(stats.log, "files failed: %d, installed: %s\n", stats.failed, installed ? "yes" : "no");
++    std::fclose(stats.log);
++    stats.log = nullptr;
++  }
++  consoleClear();
++  if (installed) {
++    std::printf("Installed %s\n\nStarting the game...\n", name.c_str());
++  } else {
++    std::printf("Installation failed (%d file errors).\n\nSee sdmc:/switch/mkxp-z/install.log\n", stats.failed);
++  }
++  consoleUpdate(NULL);
++  if (!installed)
++    svcSleepThread(3'000'000'000L);
++  consoleExit(NULL);
++}
++
++} // namespace
++
++extern "C" void userAppInit(void) {
++  romfsInit();
++  installStandaloneGame();
++}
+ 
+-extern "C" void userAppInit(void) { romfsInit(); }
+ extern "C" void userAppExit(void) { romfsExit(); }
+ 
+ // libnx only weakly references userAppInit, so the linker drops this whole
