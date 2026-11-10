@@ -1,7 +1,8 @@
 # Compatibility
 
 What works after `unpack` and `build`, and — for games older than Essentials
-v19 — after `bin/rmxp migrate`.
+v19 — after `bin/rmxp migrate`. v0.1 targets Linux; Windows packages and the
+Switch builds are experimental.
 
 ## Games
 
