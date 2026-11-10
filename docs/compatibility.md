@@ -44,6 +44,16 @@ shims Win32API/Ruby 1.8) puis reconstruit les scripts :
   sans correctif spécifique au jeu. Au premier lancement d'une copie fraîche,
   Essentials v16 propose d'installer ses polices ; c'est cosmétique après redémarrage.
 
+## Switch (émulateur Eden)
+
+Le port Switch est vérifié sous Eden (Vulkan/lavapipe), sans carte physique et
+sans mesure de fps représentative :
+
+- kit v21.1 reconstruit et kit original : écran titre, menu, carte de départ ;
+- Uranium (port warmwinter) : sélection de langue ;
+- Reborn : bloqué par la stdlib Ruby du build du port (`timeout` puis `rubygems`,
+  `net/http`) ; la correction se poursuit côté port, pas côté jeu.
+
 ## Fichiers opaques connus
 
 Essentials v16.2/v17.2 utilisent un format `.dat` binaire maison (table d'offsets, pas du
