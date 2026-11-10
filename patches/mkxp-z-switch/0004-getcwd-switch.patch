@@ -1,0 +1,57 @@
+diff --git a/src/filesystem/filesystemImpl.cpp b/src/filesystem/filesystemImpl.cpp
+index 2258eed..86444aa 100644
+--- a/src/filesystem/filesystemImpl.cpp
++++ b/src/filesystem/filesystemImpl.cpp
+@@ -22,6 +22,10 @@ namespace fs = ghc::filesystem;
+ 
+ #include <fstream>
+ #include <cstring>
++#ifdef __SWITCH__
++#include <unistd.h>
++#include <limits.h>
++#endif
+ 
+ // https://stackoverflow.com/questions/12774207/fastest-way-to-check-if-a-file-exist-using-standard-c-c11-c
+ bool filesystemImpl::fileExists(const char *path) {
+@@ -46,6 +50,16 @@ std::string filesystemImpl::contentsOfFileAsString(const char *path) {
+ 
+ // chdir and getcwd do not support unicode on Windows
+ bool filesystemImpl::setCurrentDirectory(const char *path) {
++#ifdef __SWITCH__
++    // libnx paths use a device prefix ("sdmc:/...") that ghc::filesystem
++    // does not treat as a root; use the OS chdir so relative paths in the
++    // game (stdlib, preload, Data, ...) resolve from the game folder.
++    if (chdir(path) != 0) {
++        Debug() << "Failed to switch into" << path;
++        return false;
++    }
++    return true;
++#else
+     fs::path stdPath(path);
+     fs::current_path(stdPath);
+     bool ret;
+@@ -57,9 +71,16 @@ bool filesystemImpl::setCurrentDirectory(const char *path) {
+         ret = false;
+     }
+     return ret;
++#endif
+ }
+ 
+ std::string filesystemImpl::getCurrentDirectory() {
++#ifdef __SWITCH__
++    char buf[PATH_MAX];
++    if (getcwd(buf, sizeof(buf)))
++        return std::string(buf);
++    return std::string("");
++#else
+     std::string ret;
+     try {
+         ret = std::string(fs::current_path().string());
+@@ -67,6 +88,7 @@ std::string filesystemImpl::getCurrentDirectory() {
+         throw Exception(Exception::MKXPError, "Failed to retrieve current path");
+     }
+     return ret;
++#endif
+ }
+ 
+ 
