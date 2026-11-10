@@ -97,7 +97,7 @@
    }
 --- a/switch/switch_main.cpp
 +++ b/switch/switch_main.cpp
-@@ -1,12 +1,239 @@
+@@ -1,12 +1,244 @@
  // Nintendo Switch (libnx) process setup: mount the .nro's RomFS, which holds
 -// the preload scripts (see src/main.cpp). Based on GQster's mkxp-z Switch
 -// port.
@@ -303,8 +303,10 @@
 +  copyTree("romfs:/game", dest, stats);
 +
 +  // The version marker is written last: an interrupted install has no marker
-+  // and is retried next launch, instead of looking complete.
-+  bool installed = stats.failed == 0 && fileExists(dest + "/Game.ini");
++  // and is retried next launch, instead of looking complete. A few files whose
++  // names the SD filesystem refuses (Uranium ships two " - Cópia.png" icons)
++  // are logged and skipped; the game runs without them.
++  bool installed = fileExists(dest + "/Game.ini");
 +  if (installed) {
 +    FILE *file = std::fopen((dest + "/version.txt").c_str(), "wb");
 +    if (file) {
@@ -319,7 +321,10 @@
 +  }
 +  consoleClear();
 +  if (installed) {
-+    std::printf("Installed %s\n\nStarting the game...\n", name.c_str());
++    if (stats.failed > 0)
++      std::printf("Installed %s (%d files skipped, see install.log)\n\nStarting the game...\n", name.c_str(), stats.failed);
++    else
++      std::printf("Installed %s\n\nStarting the game...\n", name.c_str());
 +  } else {
 +    std::printf("Installation failed (%d file errors).\n\nSee sdmc:/switch/mkxp-z/install.log\n", stats.failed);
 +  }
