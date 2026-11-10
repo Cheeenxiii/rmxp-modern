@@ -284,7 +284,8 @@ module Win32API_Impl
 		end
 		class GetWindowThreadProcessId
 			def call(args)
-				memcpy_string(args[1], [1].pack('l'))
+				out = args[1]
+				memcpy_string(out, [1].pack('l')) if out.is_a?(String)
 				return 1
 			end
 		end
@@ -407,7 +408,13 @@ class Win32API
 
 	end
 
-	alias_method :mkxp_native_call, :call
+	if method_defined?(:call) || private_method_defined?(:call)
+		alias_method :mkxp_native_call, :call
+	else
+		def mkxp_native_call(*_args)
+			raise RuntimeError, "Win32API native call unavailable"
+		end
+	end
 	def call(*args)
 		if @mkxp_wrap_impl
 			return @mkxp_wrap_impl.call(args)

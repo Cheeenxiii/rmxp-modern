@@ -32,6 +32,17 @@ Audit du Ruby dynamique (détail reproductible avec `bin/rmxp audit JEU`) :
 - **PSDK** : audit de code seulement ; 364 alias et 196 accès d'ivars supprimables,
   166 `send` calculés dynamiques.
 
+## Migration pré-v19
+
+`bin/rmxp migrate` applique les transformations génériques de compatibilité
+(syntaxe 1.8 → 3, regex à octets, `when valeur:`, `break`/`next` hors boucle,
+shims Win32API/Ruby 1.8) puis reconstruit les scripts :
+
+- **Uranium** : sélection de langue, titre et options atteints sur mkxp-z standard ;
+- **Insurgence** : titre, menu, nouvelle partie, intro et **première carte** rendue,
+  sans correctif spécifique au jeu. Au premier lancement d'une copie fraîche,
+  Essentials v16 propose d'installer ses polices ; c'est cosmétique après redémarrage.
+
 ## Fichiers opaques connus
 
 Essentials v16.2/v17.2 utilisent un format `.dat` binaire maison (table d'offsets, pas du
@@ -51,3 +62,5 @@ sont pas lisibles en texte.
 - Archives chiffrées RGSSAD/RGSS2A/RGSS3A : outil externe requis (voir `docs/usage.md`).
 - Démarrage des jeux reconstruits : kit v21.1 et Reborn vérifiés sous mkxp-z ; Uranium
   passe par le portage warmwinter et les assets d'origine.
+- Les captures Switch sont faites sous Eden ; les fps de l'émulateur ne sont pas
+  représentatifs de la console.
