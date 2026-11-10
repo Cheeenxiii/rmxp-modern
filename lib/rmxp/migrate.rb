@@ -1,4 +1,5 @@
 require "fileutils"
+require "yaml"
 require "json"
 require "prism"
 
@@ -13,7 +14,7 @@ module Rmxp
                   preload/mkxp_wrap.rb preload/add_stdlib.rb preload/power_cache.rb preload/tmp_env.rb preload/errno_dir.rb].freeze
 
     Result = Struct.new(:scripts, :regexes, :dynamic_flags, :when_colons, :break_fixes,
-                        :parse_errors, keyword_init: true)
+                        :read_bytes, :parse_errors, keyword_init: true)
 
     def initialize(game_dir, out_dir)
       @game_dir = File.expand_path(game_dir)
@@ -34,32 +35,40 @@ module Rmxp
       dynamic = 0
       when_colons = 0
       break_fixes = 0
+      read_bytes = 0
       parse_errors = 0
       Dir.glob(File.join(scripts_dir, "*.rb")).sort.each do |path|
         source = File.binread(path)
-        out, count, dyn, whens, breaks, error = transform_source(source)
+        out, count, dyn, whens, breaks, bytes, error = transform_source(source)
         regexes += count
         dynamic += dyn
         when_colons += whens
         break_fixes += breaks
+        read_bytes += bytes
         parse_errors += 1 if error
         File.binwrite(path, out) unless out == source
       end
 
+      append_string_input_compat(scripts_dir)
       File.binwrite(File.join(@out_dir, "Data/Scripts.rxdata"), Rmxp::Scripts.build(@out_dir))
       install_preloads
       ensure_game_ini
       Result.new(scripts: Dir.glob(File.join(scripts_dir, "*.rb")).length,
                  regexes: regexes, dynamic_flags: dynamic, when_colons: when_colons,
-                 break_fixes: break_fixes, parse_errors: parse_errors)
+                 break_fixes: break_fixes, read_bytes: read_bytes, parse_errors: parse_errors)
     end
 
     private
 
     def transform_source(source)
       source, whens = fix_when_colons(source)
+      read_bytes = 0
+      source = source.gsub(/read\(\s*(\d+)\s*\)\[0\]/) do
+        read_bytes += 1
+        "read(#{Regexp.last_match(1)}).getbyte(0)"
+      end
       result = Prism.parse(source)
-      return [source, 0, 0, whens, 0, true] unless result.value
+      return [source, 0, 0, whens, 0, read_bytes, true] unless result.value
 
       replacements = []
       queue = [result.value]
@@ -105,9 +114,9 @@ module Rmxp
       begin
         RubyVM::InstructionSequence.compile(out)
       rescue SyntaxError
-        return [out, replacements.length, dynamic, whens, breaks, true]
+        return [out, replacements.length, dynamic, whens, breaks, read_bytes, true]
       end
-      [out, replacements.length, dynamic, whens, breaks, false]
+      [out, replacements.length, dynamic, whens, breaks, read_bytes, false]
     end
 
     # Ruby 1.8 tolérait `when valeur:` ; Prism signale le ':' fautif. On ne
@@ -200,6 +209,28 @@ module Rmxp
       text
     rescue RegexpError
       nil
+    end
+
+    def append_string_input_compat(scripts_dir)
+      file = "9999_rmxp_string_input.rb"
+      File.write(File.join(scripts_dir, file), <<~RUBY)
+        # Ruby 1.8 : IO#getc renvoyait un octet ; Ruby 3 renvoie un String.
+        if defined?(StringInput) && StringInput.ancestors.include?(IO)
+          class StringInput
+            def getc
+              return nil if eof?
+              byte = read(1)
+              byte && byte.getbyte(0)
+            end
+          end
+        end
+      RUBY
+      path = File.join(@out_dir, Rmxp::Scripts::MANIFEST)
+      manifest = YAML.safe_load_file(path)
+      scripts = manifest.fetch("scripts")
+      main = scripts.index { |entry| entry["file"].include?("Main") } || scripts.length
+      scripts.insert(main, { "id" => 9_999_999, "file" => file, "name" => "rmxp compat" })
+      File.write(path, YAML.dump(manifest))
     end
 
     def install_preloads

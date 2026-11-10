@@ -10,6 +10,7 @@ cases = {
   "case x\nwhen :foo then y=1\nend\n" => "case x\nwhen :foo then y=1\nend\n",
   "def f\n  return 1\n  break\nend\n" => "def f\n  return 1\n  raise LocalJumpError, \"break outside loop\"\nend\n",
   "case x\nwhen 0: y\nend\n" => "case x\nwhen 0 then y\nend\n",
+  "x = f.read(1)[0]\n" => "x = f.read(1).getbyte(0)\n",
 }
 failures = 0
 cases.each do |source, expected|
