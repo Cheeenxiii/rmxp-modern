@@ -76,9 +76,13 @@ game from the Homebrew Menu:
 3. Start the Homebrew Menu by holding R while launching a title, not from the
    Album, which gives homebrew too little memory.
 
-Controls go through mkxp-z's usual bindings. ZL, ZR and minus are bound to
-F5, F6 and F7, which some games read as `Input::E`, `F` and `D`. MIDI music is
-skipped, and HTTP requests return nothing.
+Controls go through mkxp-z's usual bindings, following the Nintendo labels:
+A confirms and B cancels. ZL, ZR and minus are bound to F5, F6 and F7, which
+some games read as `Input::E`, `F` and `D`. MIDI music is skipped, and HTTP
+requests return nothing.
+
+Each launch writes the engine's output to `mkxp-z.log` in the folder of the
+`.nro`, replacing the previous log. When a game crashes, look there first.
 
 The Switch support is based on
 [GQster's mkxp-z Switch port](https://github.com/GQster/mkxp-zSwitchPort).
