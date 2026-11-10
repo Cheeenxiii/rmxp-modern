@@ -1,13 +1,13 @@
 # SPDX-FileCopyrightText: 2026 Cheeenxiii
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-# Assemble un programme unique (stubs + moteur ESS + données littérales +
-# harnais) pour la compilation Spinel.
+# Assembles a single program (stubs + Essentials engine + literal data +
+# harness) for Spinel compilation.
 ROOT = File.expand_path("../..", __dir__)
 OUT = ENV["RMXP_SPINEL_SRC"] || File.join(ROOT, "tmp/battle/spinel_battle.rb")
 SCRIPTS = File.join(ROOT, "tmp/battle/scripts")
 DATA = File.join(ROOT, ENV["RMXP_SMALL_DATA"] ? "tmp/battle/battle_data_small.rb" : "tmp/battle/battle_data.rb")
-raise "lance d'abord test/battle/gen_battle_data.rb" unless File.file?(DATA)
+raise "run test/battle/gen_battle_data.rb first" unless File.file?(DATA)
 
 parts = []
 parts << File.read(File.join(__dir__, "stubs.rb"))
@@ -27,4 +27,4 @@ end
 parts << File.read(DATA)
 parts << File.read(File.join(__dir__, "harness_spinel.rb"))
 File.write(OUT, parts.join("\n"))
-puts "#{OUT}: #{File.size(OUT)} octets"
+puts "#{OUT}: #{File.size(OUT)} bytes"

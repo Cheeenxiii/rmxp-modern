@@ -93,7 +93,7 @@ module RmxpBattleHooks
   def pbReduceHP(amount, anim = true, registerDamage = true, anyAnim = true)
     before = hp
     result = super
-    $battle_lines << "#{name}: -#{before - hp} PV (#{hp}/#{totalhp})" if before != hp
+    $battle_lines << "#{name}: -#{before - hp} HP (#{hp}/#{totalhp})" if before != hp
     result
   end
 end
@@ -102,7 +102,7 @@ Battle::Battler.prepend(RmxpBattleHooks)
 module RmxpTurnHooks
   def pbAttackPhase
     $turn += 1
-    $battle_lines << "== Tour #{$turn} =="
+    $battle_lines << "== Turn #{$turn} =="
     super
   end
 end
@@ -146,11 +146,11 @@ N.times do |i|
   when 2 then losses += 1
   else draws += 1
   end
-  lines << "### Combat #{i + 1} : #{p1.species} vs #{p2.species} -> #{result}"
+  lines << "### Battle #{i + 1}: #{p1.species} vs #{p2.species} -> #{result}"
   lines.concat($battle_lines)
 end
 elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - t0
 File.write(LOG_PATH, lines.join("\n") + "\n")
-puts "combats=#{N} seed=#{SEED} gagnés=#{wins} perdus=#{losses} nuls=#{draws} " \
-     "temps=#{format('%.3f', elapsed)}s lignes=#{lines.length}"
+puts "battles=#{N} seed=#{SEED} won=#{wins} lost=#{losses} draws=#{draws} " \
+     "time=#{format('%.3f', elapsed)}s lines=#{lines.length}"
 puts "log: #{LOG_PATH}"

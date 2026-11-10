@@ -1,10 +1,10 @@
 # SPDX-FileCopyrightText: 2026 Cheeenxiii
 # SPDX-License-Identifier: MIT
 
-# Cache générique de System.power_state. Les jeux Essentials v19+ appellent
-# pbBatteryLow? à chaque frame ; sur certaines plateformes SDL_GetPowerInfo
-# coûte ~1 ms par appel. Fenêtre par défaut : 5 s, désactivable avec
-# RMXP_POWER_CACHE_SECONDS=0.
+# Caches System.power_state. Essentials v19+ calls pbBatteryLow? every
+# frame, and on some platforms SDL_GetPowerInfo costs about 1 ms per call.
+# The value is refreshed every 5 seconds by default; set
+# RMXP_POWER_CACHE_SECONDS=0 to disable the cache.
 module System
   class << self
     alias __rmxp_original_power_state power_state unless method_defined?(:__rmxp_original_power_state)

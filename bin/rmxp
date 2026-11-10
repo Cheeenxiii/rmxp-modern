@@ -10,16 +10,16 @@ def slug(path)
 end
 
 def print_audit(result)
-  puts "sources: scripts=#{result.scripts} fragments_evenements=#{result.event_fragments} " \
-       "erreurs_parsing=#{result.parse_errors}"
-  puts format("  %-34s %12s %12s %12s", "catégorie", "supprimable", "énumérable", "dynamique")
+  puts "sources: scripts=#{result.scripts} event_fragments=#{result.event_fragments} " \
+       "parse_errors=#{result.parse_errors}"
+  puts format("  %-34s %12s %12s %12s", "category", "static", "enumerable", "dynamic")
   Rmxp::Audit::CATEGORIES.each do |key, label|
-    sup = result.stats[:supprimable][key]
+    sup = result.stats[:static][key]
     enum = result.stats[:enumerable][key]
-    dyn = result.stats[:dynamique][key]
+    dyn = result.stats[:dynamic][key]
     puts format("  %-34s %12d %12d %12d", label, sup, enum, dyn) if sup.positive? || enum.positive? || dyn.positive?
   end
-  puts format("  %-34s %12d %12d %12d", "fragments d'événements", result.event_fragments, 0, 0)
+  puts format("  %-34s %12d %12d %12d", "event fragments", result.event_fragments, 0, 0)
 end
 
 command = ARGV.shift
@@ -27,40 +27,40 @@ command = ARGV.shift
 case command
 when "unpack"
   game_dir, out_dir = ARGV
-  abort "usage: rmxp unpack JEU SORTIE" unless game_dir && out_dir
+  abort "usage: rmxp unpack GAME OUT" unless game_dir && out_dir
   manifest = Rmxp::Project.new(game_dir).unpack(game_dir, out_dir)
-  puts "#{manifest['data'].length} fichiers de données, scripts: #{manifest['scripts'] ? 'oui' : 'non'}"
+  puts "#{manifest['data'].length} data files, scripts: #{manifest['scripts'] ? 'yes' : 'no'}"
 when "build"
   project_dir, out_dir = ARGV
-  abort "usage: rmxp build PROJET SORTIE" unless project_dir && out_dir
+  abort "usage: rmxp build PROJECT OUT" unless project_dir && out_dir
   Rmxp::Project.new(project_dir).build(out_dir)
   puts "build: #{out_dir}"
 when "roundtrip"
   game_dir = ARGV.shift
-  abort "usage: rmxp roundtrip JEU [TRAVAIL]" unless game_dir
+  abort "usage: rmxp roundtrip GAME [WORKDIR]" unless game_dir
   work_dir = ARGV.shift || File.join("tmp", "roundtrip", slug(game_dir))
   report = Rmxp::Project.new(game_dir).roundtrip(work_dir)
-  puts format("%-40s fichiers=%-4d octet=%d sémantique=%d opaque=%d scripts=%s",
+  puts format("%-40s files=%-4d identical=%d equivalent=%d opaque=%d scripts=%s",
               report["game"], report["files"], report["byte_identical"],
-              report["semantic_identical"], report["opaque"], report["scripts"] == 1 ? "ok" : "KO")
+              report["semantic_identical"], report["opaque"], report["scripts"] == 1 ? "ok" : "FAIL")
 when "check"
   game_dir = ARGV.shift
-  abort "usage: rmxp check JEU [TRAVAIL]" unless game_dir
+  abort "usage: rmxp check GAME [WORKDIR]" unless game_dir
   work_dir = ARGV.shift || File.join("tmp", "check", slug(game_dir))
   report = Rmxp::Check.new(game_dir, work_dir).run
-  puts "scripts: #{report.scripts} (+#{report.script_errors} erreur(s)), " \
-       "événements: #{report.events} fragment(s) (+#{report.event_errors} erreur(s))"
+  puts "scripts: #{report.scripts} (#{report.script_errors} error(s)), " \
+       "events: #{report.events} fragment(s) (#{report.event_errors} error(s))"
   report.errors.each { |error| puts "  #{error}" }
   exit(report.errors.empty? ? 0 : 1)
 when "migrate"
   game_dir, out_dir = ARGV
-  abort "usage: rmxp migrate JEU SORTIE" unless game_dir && out_dir
+  abort "usage: rmxp migrate GAME OUT" unless game_dir && out_dir
   result = Rmxp::Migrate.new(game_dir, out_dir).run
-  puts "migrate: #{result.scripts} scripts, #{result.regexes} regexes converties, " \
-       "#{result.dynamic_flags} flags n retirés, #{result.when_colons} when convertis, " \
-       "#{result.break_fixes} break/next réparés, #{result.read_bytes} read(1)[0] corrigés, " \
-       "#{result.parse_errors} script(s) invalide(s)"
-  puts "sortie: #{File.expand_path(out_dir)}"
+  puts "migrate: #{result.scripts} scripts, #{result.regexes} regexes converted, " \
+       "#{result.dynamic_flags} /n flags removed, #{result.when_colons} when clauses converted, " \
+       "#{result.break_fixes} break/next fixed, #{result.read_bytes} read(1)[0] fixed, " \
+       "#{result.parse_errors} invalid script(s)"
+  puts "output: #{File.expand_path(out_dir)}"
 when "audit"
   if ARGV.first == "--scripts"
     ARGV.shift
@@ -71,21 +71,21 @@ when "audit"
     exit 0
   end
   game_dir = ARGV.shift
-  abort "usage: rmxp audit JEU [TRAVAIL] | rmxp audit --scripts DIR" unless game_dir
+  abort "usage: rmxp audit GAME [WORKDIR] | rmxp audit --scripts DIR" unless game_dir
   work_dir = ARGV.shift || File.join("tmp", "audit", slug(game_dir))
   result = Rmxp::Audit.new(game_dir, work_dir).run
   print_audit(result)
 when "help", nil
   puts <<~TEXT
-    rmxp — aller-retour des données Pokémon Essentials
+    rmxp - convert RPG Maker XP games to text projects and back
 
-      rmxp unpack JEU SORTIE      extrait Data/ et Scripts.rxdata en texte
-      rmxp build PROJET SORTIE    reconstruit Data/ et Scripts.rxdata
-      rmxp roundtrip JEU [TMP]    unpack + build + comparaison avec l'original
-      rmxp check JEU [TMP]        compilation statique des scripts et événements
-      rmxp audit JEU [TMP]        inventaire du Ruby dynamique
-      rmxp migrate JEU SORTIE     copie + migrations de compatibilité (pré-v19)
+      rmxp unpack GAME OUT          extract Data/ and Scripts.rxdata to text
+      rmxp build PROJECT OUT        rebuild Data/ and Scripts.rxdata from text
+      rmxp roundtrip GAME [WORKDIR] unpack, build and compare with the original
+      rmxp check GAME [WORKDIR]     parse every script and event script
+      rmxp audit GAME [WORKDIR]     count dynamic Ruby constructs
+      rmxp migrate GAME OUT         copy a pre-v19 game and port it to Ruby 3
   TEXT
 else
-  abort "commande inconnue: #{command}"
+  abort "unknown command: #{command}"
 end

@@ -26,7 +26,7 @@ module Rmxp
 
     def unpack(game_dir, out_dir)
       data_dir = File.join(game_dir, "Data")
-      raise ArgumentError, "pas de dossier Data dans #{game_dir}" unless Dir.exist?(data_dir)
+      raise ArgumentError, "no Data directory in #{game_dir}" unless Dir.exist?(data_dir)
 
       FileUtils.rm_rf(out_dir)
       FileUtils.mkdir_p(File.join(out_dir, "data"))
@@ -42,7 +42,7 @@ module Rmxp
             # 1.8 printed floats differently from modern Ruby). What must hold
             # is that the text tree is a faithful, stable representation.
             stable = Codec.to_tree(Codec.from_tree(tree)) == tree
-            raise ArgumentError, "#{name}: représentation instable" unless stable
+            raise ArgumentError, "#{name}: unstable text representation" unless stable
 
             File.write(File.join(out_dir, "data", "#{name}.yaml"), YAML.dump(tree))
             { "file" => name, "format" => "marshal" }
@@ -82,7 +82,7 @@ module Rmxp
 
     def build(out_game_dir)
       manifest_path = File.join(root, "manifest.yml")
-      raise ArgumentError, "manifeste absent: #{manifest_path}" unless File.file?(manifest_path)
+      raise ArgumentError, "manifest not found: #{manifest_path}" unless File.file?(manifest_path)
 
       manifest = YAML.safe_load_file(manifest_path)
       data_out = File.join(out_game_dir, "Data")
@@ -156,7 +156,7 @@ module Rmxp
         end
       end
 
-      raise "#{report['game']}: fichiers différents: #{report['mismatches'].join(', ')}" unless report["mismatches"].empty?
+      raise "#{report['game']}: files differ: #{report['mismatches'].join(', ')}" unless report["mismatches"].empty?
 
       report
     end

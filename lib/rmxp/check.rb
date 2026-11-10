@@ -154,7 +154,7 @@ module Rmxp
 
       report.event_errors += 1
       error = result.errors.first
-      report.errors << "#{name}: ligne #{error.location.start_line}: #{error.message} (#{source.lines.first.to_s.strip[0, 60]})"
+      report.errors << "#{name}: line #{error.location.start_line}: #{error.message} (#{source.lines.first.to_s.strip[0, 60]})"
     end
 
     # Walks any structure that contains RPG::EventCommand objects.

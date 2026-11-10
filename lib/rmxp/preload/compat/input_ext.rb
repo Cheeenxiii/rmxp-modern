@@ -1,8 +1,8 @@
 # SPDX-FileCopyrightText: 2026 Cheeenxiii
 # SPDX-License-Identifier: MIT
 
-# Constantes Input absentes de certains moteurs (Reborn, bindings Switch).
-# Shim générique installé par migrate ; aucune dépendance à un jeu précis.
+# Input constants missing from some engines (Reborn, Switch bindings).
+# Generic shim installed by migrate; does not depend on a specific game.
 module Input
   E = F5 unless const_defined?(:E)
   F = F6 unless const_defined?(:F)

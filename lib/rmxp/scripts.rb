@@ -15,7 +15,7 @@ module Rmxp
 
     def unpack(rxdata_path, out_dir)
       entries = Marshal.load(File.binread(rxdata_path))
-      raise ArgumentError, "#{rxdata_path}: format inattendu" unless entries.is_a?(Array)
+      raise ArgumentError, "#{rxdata_path}: unexpected format" unless entries.is_a?(Array)
 
       Dir.mkdir(out_dir) unless Dir.exist?(out_dir)
       manifest = entries.each_with_index.map do |entry, index|
@@ -32,12 +32,12 @@ module Rmxp
 
     def build(project_dir)
       manifest_path = File.join(project_dir, MANIFEST)
-      raise ArgumentError, "manifeste de scripts absent: #{manifest_path}" unless File.file?(manifest_path)
+      raise ArgumentError, "scripts manifest not found: #{manifest_path}" unless File.file?(manifest_path)
 
       manifest = YAML.safe_load_file(manifest_path).fetch("scripts")
       entries = manifest.map do |entry|
         file = File.join(project_dir, "scripts", entry["file"])
-        raise ArgumentError, "script absent: #{file}" unless File.file?(file)
+        raise ArgumentError, "script not found: #{file}" unless File.file?(file)
 
         [entry["id"], entry_name(entry), Zlib::Deflate.deflate(File.binread(file))]
       end
@@ -76,7 +76,7 @@ module Rmxp
         original = Zlib::Inflate.inflate(compressed)
         next if source == original && id == manifest[index]["id"] && name == entry_name(manifest[index])
 
-        raise ArgumentError, "script #{index + 1} ne se relit pas à l'identique"
+        raise ArgumentError, "script #{index + 1} does not read back identically"
       end
     end
   end

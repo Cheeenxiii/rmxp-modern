@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2026 Cheeenxiii
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-# Remplace uniquement la formule finale de dégâts par l'extension Spinel.
+# Replaces only the final damage formula with the Spinel extension.
 module BattleHotDamage
   def pbCalcDamage(user, target, numTargets = 1)
     return if statusMove?

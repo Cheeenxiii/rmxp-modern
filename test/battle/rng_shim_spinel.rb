@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2026 Cheeenxiii
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-# Shim RNG compatible Spinel : même MT19937, mêmes conversions que CRuby.
+# Spinel-compatible RNG shim: same MT19937 and same conversions as CRuby.
 module Rmxp
   module Det
     SEED = (ARGV[1] || "1").to_i

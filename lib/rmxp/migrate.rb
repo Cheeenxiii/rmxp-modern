@@ -7,9 +7,9 @@ require "json"
 require "prism"
 
 module Rmxp
-  # Migration de compatibilité d'un jeu Essentials pré-v19 : copie le jeu,
-  # externalise les scripts, applique des transformations génériques, puis
-  # reconstruit Scripts.rxdata. Aucune correction propre à un jeu.
+  # Compatibility migration for pre-v19 Essentials games: copies the game,
+  # extracts the scripts, applies generic transformations, then rebuilds
+  # Scripts.rxdata. No game-specific fixes.
   class Migrate
     FLAGS = { "i" => "Regexp::IGNORECASE", "m" => "Regexp::MULTILINE", "x" => "Regexp::EXTENDED" }.freeze
     COMPAT = File.expand_path("preload/compat", __dir__)
@@ -25,8 +25,8 @@ module Rmxp
     end
 
     def run
-      raise ArgumentError, "jeu absent: #{@game_dir}" unless Dir.exist?(@game_dir)
-      raise ArgumentError, "sortie existante: #{@out_dir}" if File.exist?(@out_dir)
+      raise ArgumentError, "game not found: #{@game_dir}" unless Dir.exist?(@game_dir)
+      raise ArgumentError, "output already exists: #{@out_dir}" if File.exist?(@out_dir)
 
       FileUtils.mkdir_p(@out_dir)
       FileUtils.cp_r(File.join(@game_dir, "."), @out_dir)
@@ -94,7 +94,7 @@ module Rmxp
         out[start...finish] = text
       end
 
-      # /n sur une regexp interpolée : incompatible avec les regexp Unicode
+      # /n on an interpolated regexp is incompatible with Unicode regexps
       reparsed = Prism.parse(out)
       dynamic = 0
       if reparsed.value
@@ -122,8 +122,8 @@ module Rmxp
       [out, replacements.length, dynamic, whens, breaks, read_bytes, false]
     end
 
-    # Ruby 1.8 tolérait `when valeur:` ; Prism signale le ':' fautif. On ne
-    # touche qu'à ces offsets, jamais aux `::`, symboles ou chaînes.
+    # Ruby 1.8 accepted `when value:`; Prism reports the offending ':'. Only
+    # those offsets are touched, never `::`, symbols or strings.
     def fix_when_colons(source)
       result = Prism.parse(source)
       offsets = result.errors.select { |error| error.message.include?("predicates of a `when` clause") }
@@ -143,8 +143,9 @@ module Rmxp
       text
     end
 
-    # Ruby 1.8 acceptait des `break`/`next` hors boucle qui ne compilent plus
-    # en Ruby 3. On les remplace par l'équivalent d'exécution (LocalJumpError).
+    # Ruby 1.8 accepted `break`/`next` outside a loop, which no longer
+    # compiles in Ruby 3. Replace them with their runtime effect
+    # (LocalJumpError).
     def fix_invalid_breaks(source)
       result = Prism.parse(source)
       return [source, 0] unless result.value
@@ -219,9 +220,9 @@ module Rmxp
       File.write(File.join(scripts_dir, file), <<~RUBY)
         # SPDX-FileCopyrightText: 2026 Cheeenxiii
         # SPDX-License-Identifier: MIT
-        # Ruby 1.8 : String#[] / IO#getc renvoyaient un octet ; Ruby 3 renvoie
-        # un String. Couvre les deux familles de StringInput (IO ou classe
-        # autonome avec @string/@pos).
+        # Ruby 1.8's String#[] and IO#getc returned a byte; Ruby 3 returns a
+        # String. Covers both StringInput variants (IO subclass, or standalone
+        # class with @string/@pos).
         if defined?(StringInput)
           class StringInput
             def getc

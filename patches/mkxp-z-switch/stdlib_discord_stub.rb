@@ -1,8 +1,8 @@
 # SPDX-FileCopyrightText: 2026 Cheeenxiii
 # SPDX-License-Identifier: MIT
 
-# Reborn charge la gem native discord (Rich Presence), absente du port.
-# Le jeu tolère une présence inactive si les méthodes existent.
+# Reborn loads the native discord gem (Rich Presence), which the port does
+# not have. The game copes with an inactive presence if the methods exist.
 module Discord
   def self.connected?; false; end
   def self.connect(*_args); nil; end

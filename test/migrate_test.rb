@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2026 Cheeenxiii
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-# Non-régression des transformations de bin/rmxp migrate.
+# Regression tests for the bin/rmxp migrate transformations.
 $LOAD_PATH.unshift(File.expand_path("../lib", __dir__))
 require "rmxp"
 
@@ -21,7 +21,7 @@ cases.each do |source, expected|
   next if got == expected
 
   failures += 1
-  puts "ECHEC\nattendu: #{expected.inspect}\nobtenu : #{got.inspect}"
+  puts "FAIL\nexpected: #{expected.inspect}\ngot:      #{got.inspect}"
 end
-puts failures.zero? ? "migrate: ok" : "migrate: #{failures} échec(s)"
+puts failures.zero? ? "migrate: ok" : "migrate: #{failures} failure(s)"
 exit(failures.zero? ? 0 : 1)

@@ -2,8 +2,8 @@
 # SPDX-FileCopyrightText: 2026 Cheeenxiii
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-# Vérifie que le MT19937 maison tire exactement les mêmes nombres que CRuby
-# avec la même graine : bits bruts, flottants, entiers et plages.
+# Checks that our MT19937 draws exactly the same numbers as CRuby with the
+# same seed: raw bits, floats, integers and ranges.
 $LOAD_PATH.unshift(File.expand_path("../lib", __dir__))
 require "rmxp/mt19937"
 
@@ -12,7 +12,7 @@ SEEDS = [
   2**32 + 1, 2**63, 10**30, 999_999_999_999_999_999_999_999,
 ].freeze
 
-# Opérations passées à Kernel#rand / Random#rand.
+# Operations passed to Kernel#rand / Random#rand.
 OPS = [
   [], [100], [1], [2], [6], [10], [1000], [65_536], [2**31 - 1],
   [-100], [-1], [-2], [0], [0.0], [0.5], [1.5], [1.9], [-0.5],
@@ -31,24 +31,24 @@ end
 def check(name, expected, actual, context)
   return 0 if same_number?(expected, actual)
 
-  puts "ECHEC #{name} #{context}: attendu #{expected.inspect} (#{expected.class}), obtenu #{actual.inspect} (#{actual.class})"
+  puts "FAIL #{name} #{context}: expected #{expected.inspect} (#{expected.class}), got #{actual.inspect} (#{actual.class})"
   1
 end
 
 failures = 0
 
-# 1. Bits bruts : Random#bytes(4) renvoie genrand_int32 en little-endian.
+# 1. Raw bits: Random#bytes(4) returns genrand_int32 in little-endian order.
 SEEDS.each do |seed|
   cruby = Random.new(seed)
   ours = Rmxp::MT19937.new(seed)
   20.times do |i|
     expected = cruby.bytes(4).unpack1("V")
     actual = ours.genrand_int32
-    failures += check("bits", expected, actual, "graine=#{seed} tirage=#{i}")
+    failures += check("bits", expected, actual, "seed=#{seed} draw=#{i}")
   end
 end
 
-# 2. Conversions Kernel#rand et Random#rand sur des millions de tirages.
+# 2. Kernel#rand and Random#rand conversions over millions of draws.
 def run_kernel(seed, count)
   srand(seed)
   ours = Rmxp::MT19937.new(seed)
@@ -68,7 +68,7 @@ RANDOM_OPS = OPS.reject do |op|
   (arg.is_a?(Integer) && arg <= 0) || (arg.is_a?(Float) && (arg.negative? || arg.nan?))
 end.freeze
 
-# Plages vides ou inversées : Kernel#rand renvoie nil, Random#rand lève.
+# Empty or reversed ranges: Kernel#rand returns nil, Random#rand raises.
 EMPTY_RANGE_OPS = [[0..-1], [1..0], [0...0], [2.0...2.0], [1.0...1.0]].freeze
 
 def run_random(seed, count)
@@ -88,32 +88,32 @@ SEEDS.each do |seed|
     srand(seed)
     expected = rand(*op)
     actual = Rmxp::CRubyRandom.kernel_rand(Rmxp::MT19937.new(seed), op)
-    failures += check("plage vide", expected, actual, "graine=#{seed} Kernel #{op.inspect}")
+    failures += check("empty range", expected, actual, "seed=#{seed} Kernel #{op.inspect}")
   end
   [run_kernel(seed, 2_000), run_random(seed, 2_000)].each do |mismatch|
     next unless mismatch
 
     index, op, expected, actual = mismatch
-    puts "ECHEC séquence graine=#{seed} tirage=#{index} op=#{op.inspect}: attendu #{expected.inspect}, obtenu #{actual.inspect}"
+    puts "FAIL sequence seed=#{seed} draw=#{index} op=#{op.inspect}: expected #{expected.inspect}, got #{actual.inspect}"
     failures += 1
   end
 end
 
-# 3. Test long : 2 millions de tirages répartis sur quelques graines.
+# 3. Long run: 2 million draws spread over a few seeds.
 SEEDS.first(6).each do |seed|
   count = 2_000_000 / 6
   mismatch = run_kernel(seed, count)
   if mismatch
     index, op, expected, actual = mismatch
-    puts "ECHEC long graine=#{seed} tirage=#{index} op=#{op.inspect}: attendu #{expected.inspect}, obtenu #{actual.inspect}"
+    puts "FAIL long seed=#{seed} draw=#{index} op=#{op.inspect}: expected #{expected.inspect}, got #{actual.inspect}"
     failures += 1
   end
 end
 
 if failures.zero?
-  puts "mt19937: ok (bits bruts, Kernel#rand, Random#rand, 2M de tirages)"
+  puts "mt19937: ok (raw bits, Kernel#rand, Random#rand, 2M draws)"
   exit 0
 else
-  puts "mt19937: #{failures} échec(s)"
+  puts "mt19937: #{failures} failure(s)"
   exit 1
 end

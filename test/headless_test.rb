@@ -2,17 +2,17 @@
 # SPDX-FileCopyrightText: 2026 Cheeenxiii
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-# Lance un jeu dans mkxp-z sous Xvfb avec le RNG déterministe et un compteur
-# de frames, puis écrit un dump d'état. Deux exécutions avec la même graine
-# doivent produire le même dump.
+# Runs a game in mkxp-z under Xvfb with the deterministic RNG and a frame
+# counter, then writes a state dump. Two runs with the same seed must produce
+# the same dump.
 #
-# usage: test/headless_test.rb JEU DATA_RECONSTRUITE [SECONDES] [SEED]
+# usage: test/headless_test.rb GAME REBUILT_DATA [SECONDS] [SEED]
 $LOAD_PATH.unshift(File.expand_path("../lib", __dir__))
 require "fileutils"
 require "json"
 
-game = File.expand_path(ARGV[0] || abort("usage: headless_test.rb JEU DATA [FRAMES] [SEED]"))
-rebuilt_data = File.expand_path(ARGV[1] || abort("DATA_RECONSTRUITE manquant"))
+game = File.expand_path(ARGV[0] || abort("usage: headless_test.rb GAME REBUILT_DATA [SECONDS] [SEED]"))
+rebuilt_data = File.expand_path(ARGV[1] || abort("missing REBUILT_DATA"))
 seconds = (ARGV[2] || "2.0").to_f
 seed = (ARGV[3] || "1").to_i
 mkxp = ENV["MKXP_BIN"] || File.expand_path("../vendor/mkxp-z/build/mkxp-z.x86_64", __dir__)
@@ -24,8 +24,8 @@ dump_path = File.join(root, "dump.txt")
 FileUtils.rm_rf(root)
 FileUtils.mkdir_p(game_dir)
 
-# Copie les fichiers du jeu (les dossiers d'assets sont liés, Data vient de la
-# reconstruction).
+# Copy the game files (asset directories are symlinked, Data comes from the
+# rebuild).
 Dir.children(game).each do |entry|
   next if entry == "Data"
 
@@ -39,14 +39,14 @@ Dir.children(game).each do |entry|
 end
 FileUtils.cp_r(rebuilt_data, File.join(game_dir, "Data"))
 
-# Script de preload : le MT19937, le shim et la sonde de scénario.
+# Preload script: MT19937, the RNG shim and the scenario probe.
 preload = File.join(game_dir, "headless_preload.rb")
 File.write(preload,
            File.read(File.expand_path("../lib/rmxp/mt19937.rb", __dir__)) + "\n" +
            File.read(File.expand_path("../lib/rmxp/preload/deterministic_random.rb", __dir__)))
 File.write(preload, File.read(preload) + "\n" + File.read(File.expand_path("../lib/rmxp/preload/scenario.rb", __dir__)))
 
-# mkxp.json : conserve les réglages existants, ajoute le preload.
+# mkxp.json: keep the existing settings, add the preload.
 config_path = File.join(game_dir, "mkxp.json")
 config = File.file?(config_path) ? File.read(config_path) : "{\n}\n"
 unless config.include?("headless_preload.rb")
@@ -78,11 +78,11 @@ started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 ok = system(env, *command, chdir: game_dir)
 elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
 unless ok
-  puts "mkxp-z a échoué (code #{$?.exitstatus}) après #{format('%.1f', elapsed)}s"
+  puts "mkxp-z failed (code #{$?.exitstatus}) after #{format('%.1f', elapsed)}s"
   exit 1
 end
 unless File.file?(dump_path)
-  puts "pas de dump après #{format('%.1f', elapsed)}s"
+  puts "no dump after #{format('%.1f', elapsed)}s"
   exit 1
 end
 puts File.read(dump_path)

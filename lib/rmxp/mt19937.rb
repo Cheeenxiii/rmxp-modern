@@ -47,8 +47,8 @@
 # seed. This is a direct port of Ruby's missing/mt19937.c and of the
 # conversions in random.c (float in [0,1), rand(n), rand(range)).
 #
-# Used by the oracle tests and, through the preload shim, by the reference
-# run, the transformed run and the compiled game.
+# Used by the tests and, through the preload shim, by the reference run, the
+# transformed run and the compiled game.
 module Rmxp
   # CRuby's MT19937 with the Cokus optimisation: the state array is consumed
   # in order and regenerated when exhausted.
@@ -104,7 +104,7 @@ module Rmxp
 
       mask = make_mask(limit)
       if limit > MASK32
-        raise NotImplementedError, "rand(n) avec n > 2**32 non implémenté"
+        raise NotImplementedError, "rand(n) with n > 2**32 is not implemented"
       end
 
       loop do

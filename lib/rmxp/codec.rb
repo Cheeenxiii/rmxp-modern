@@ -58,7 +58,7 @@ module Rmxp
     # Plain tree -> object graph.
     def from_tree(tree)
       expected = tree["format"]
-      raise ArgumentError, "format de données inconnu: #{expected.inspect}" unless expected == FORMAT
+      raise ArgumentError, "unknown data format: #{expected.inspect}" unless expected == FORMAT
 
       Decoder.new.decode(tree["value"])
     end
@@ -327,7 +327,7 @@ module Rmxp
 
       def encode_object(value)
         if value.is_a?(RmxpBlob)
-          raise "blob sans payload: #{value.class.name}" if value.payload.nil?
+          raise "blob without payload: #{value.class.name}" if value.payload.nil?
 
           return { "__class__" => value.class.name, "__blob__" => Base64.strict_encode64(value.payload) }
         end
@@ -355,7 +355,7 @@ module Rmxp
         when Hash
           decode_hash(node)
         else
-          raise ArgumentError, "nœud YAML inattendu: #{node.class}"
+          raise ArgumentError, "unexpected YAML node: #{node.class}"
         end
       end
 
@@ -408,7 +408,7 @@ module Rmxp
         when "NaN" then Float::NAN
         when "Infinity" then Float::INFINITY
         when "-Infinity" then -Float::INFINITY
-        else raise ArgumentError, "float spécial inconnu: #{name}"
+        else raise ArgumentError, "unknown special float: #{name}"
         end
       end
 

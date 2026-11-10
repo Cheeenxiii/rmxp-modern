@@ -13,8 +13,8 @@
 #   RMXP_DUMP    dump file path (default scenario_dump.txt)
 #   RMXP_SEED    RNG seed, read by deterministic_random.rb
 
-# Profil optionnel (RMXP_PROFILE=1) : self-time et allocations par méthode du
-# jeu, via TracePoint. Actif seulement pendant la fenêtre de mesure.
+# Optional profiling (RMXP_PROFILE=1): self time and allocations per game
+# method, through TracePoint. Only active during the measurement window.
 module Rmxp
   module Profile
     @entries = []
@@ -91,8 +91,8 @@ end
 
 
 module Rmxp
-  # Scénario « vraie scène » : démarre une partie, marche sur la carte ou
-  # déclenche des combats automatiques, puis mesure la scène ciblée.
+  # "Real scene" scenario: starts a new game, walks on the map or triggers
+  # automatic battles, then measures the target scene.
   module Journey
     TARGET = (ENV["RMXP_JOURNEY"] || "").to_sym
     MAP_ID = (ENV["RMXP_JOURNEY_MAP"] || "0").to_i

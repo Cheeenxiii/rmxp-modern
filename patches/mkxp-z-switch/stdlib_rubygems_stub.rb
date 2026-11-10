@@ -1,8 +1,8 @@
 # SPDX-FileCopyrightText: 2026 Cheeenxiii
 # SPDX-License-Identifier: MIT
 
-# Le build Ruby du port n'installe pas RubyGems. Certains jeux Essentials
-# (Reborn) appellent `gem 'rubygems'` au démarrage sans utiliser l'API ensuite.
+# The port's Ruby build does not include RubyGems. Some Essentials games
+# (Reborn) call `gem 'rubygems'` at startup without using the API afterwards.
 module Gem
   VERSION = "stub"
 end

@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2026 Cheeenxiii
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-# ==== harnais de combat (partie compilée) ====
+# ==== battle harness (compiled part) ====
 N = (ARGV[0] || "1000").to_i
 LOG_PATH = ARGV[2] || "battle_log.txt"
 
@@ -61,7 +61,7 @@ module RmxpBattleHooks
   def pbReduceHP(amount, anim = true, registerDamage = true, anyAnim = true)
     before = hp
     result = super
-    $battle_lines << "#{name}: -#{before - hp} PV (#{hp}/#{totalhp})" if before != hp
+    $battle_lines << "#{name}: -#{before - hp} HP (#{hp}/#{totalhp})" if before != hp
     result
   end
 end
@@ -70,7 +70,7 @@ Battle::Battler.prepend(RmxpBattleHooks)
 module RmxpTurnHooks
   def pbAttackPhase
     $turn += 1
-    $battle_lines << "== Tour #{$turn} =="
+    $battle_lines << "== Turn #{$turn} =="
     super
   end
 end
@@ -112,9 +112,9 @@ while i < N
   wins += 1 if result == 1
   losses += 1 if result == 2
   draws += 1 if result != 1 && result != 2
-  lines << "### Combat #{i + 1} : #{p1.species} vs #{p2.species} -> #{result}"
+  lines << "### Battle #{i + 1}: #{p1.species} vs #{p2.species} -> #{result}"
   lines.concat($battle_lines)
   i += 1
 end
 File.write(LOG_PATH, lines.join("\n") + "\n")
-puts "combats=#{N} gagnés=#{wins} perdus=#{losses} nuls=#{draws} lignes=#{lines.length}"
+puts "battles=#{N} won=#{wins} lost=#{losses} draws=#{draws} lines=#{lines.length}"

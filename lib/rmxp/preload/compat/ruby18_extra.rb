@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2026 Cheeenxiii
 # SPDX-License-Identifier: MIT
 
-# Compléments Ruby 1.8 génériques utilisés par les jeux Essentials v16.
+# Ruby 1.8 APIs used by Essentials v16 games.
 class Thread
   class << self
     def critical; false; end

@@ -4,18 +4,18 @@
 require "prism"
 
 module Rmxp
-  # Inventaire statique du Ruby dynamique, classé :
-  # - supprimable : la cible est connue au build (littéral, chaîne/symbole,
-  #   alias, fragment d'événement) et une transformation peut la remplacer par
-  #   un appel direct ou du code généré ;
-  # - énumérable : la cible est calculée mais reste dans un ensemble fini connu
-  #   au build (constante de module, famille de méthodes, ivars d'une classe) ;
-  # - dynamique : la cible n'est pas bornée au build (eval arbitraire,
-  #   ObjectSpace, récepteur variable…).
+  # Static inventory of dynamic Ruby, in three classes:
+  # - static: the target is known at build time (literal, string/symbol,
+  #   alias, event fragment) and a transformation can replace it with a
+  #   direct call or generated code;
+  # - enumerable: the target is computed but stays within a finite set known
+  #   at build time (module constant, method family, ivars of a class);
+  # - dynamic: the target is unbounded at build time (arbitrary eval,
+  #   ObjectSpace, variable receiver...).
   class Audit
     CATEGORIES = {
-      eval: "eval (chaîne littérale)",
-      eval_block: "eval (bloc)",
+      eval: "eval (literal string)",
+      eval_block: "eval (block)",
       send: "send / __send__ / public_send",
       alias: "alias / alias_method",
       define_method: "define_method",
@@ -38,7 +38,7 @@ module Rmxp
       project = File.join(@work_dir, "unpacked")
       Project.new(@game_dir).unpack(@game_dir, project)
 
-      stats = { supprimable: Hash.new(0), enumerable: Hash.new(0), dynamique: Hash.new(0) }
+      stats = { static: Hash.new(0), enumerable: Hash.new(0), dynamic: Hash.new(0) }
       scripts = 0
       parse_errors = 0
 
@@ -56,9 +56,9 @@ module Rmxp
                  parse_errors: parse_errors, stats: stats)
     end
 
-    # Audit d'une arborescence de scripts déjà extraite (PSDK par exemple).
+    # Audits a directory of already extracted scripts (PSDK, for instance).
     def run_scripts_dir(dir)
-      stats = { supprimable: Hash.new(0), enumerable: Hash.new(0), dynamique: Hash.new(0) }
+      stats = { static: Hash.new(0), enumerable: Hash.new(0), dynamic: Hash.new(0) }
       scripts = 0
       parse_errors = 0
       Dir.glob(File.join(dir, "**", "*.rb")).sort.each do |path|
@@ -77,9 +77,9 @@ module Rmxp
 
       counter = Counter.new
       counter.visit(result.value)
-      counter.supprimable.each { |key, value| stats[:supprimable][key] += value }
+      counter.static.each { |key, value| stats[:static][key] += value }
       counter.enumerable.each { |key, value| stats[:enumerable][key] += value }
-      counter.dynamique.each { |key, value| stats[:dynamique][key] += value }
+      counter.dynamic.each { |key, value| stats[:dynamic][key] += value }
       0
     end
 
@@ -162,13 +162,13 @@ module Rmxp
     end
 
     class Counter < Prism::Visitor
-      attr_reader :supprimable, :enumerable, :dynamique
+      attr_reader :static, :enumerable, :dynamic
 
       def initialize
         super
-        @supprimable = Hash.new(0)
+        @static = Hash.new(0)
         @enumerable = Hash.new(0)
-        @dynamique = Hash.new(0)
+        @dynamic = Hash.new(0)
       end
 
       def constant_receiver?(node)
@@ -187,51 +187,51 @@ module Rmxp
       def visit_call_node(node)
         case node.name
         when :eval
-          literal?(first_argument(node)) ? @supprimable[:eval] += 1 : @dynamique[:eval] += 1
+          literal?(first_argument(node)) ? @static[:eval] += 1 : @dynamic[:eval] += 1
         when :instance_eval, :class_eval, :module_eval
           first = first_argument(node)
           if first.nil? || literal?(first)
-            @supprimable[:eval_block] += 1
+            @static[:eval_block] += 1
           else
-            @dynamique[:eval_block] += 1
+            @dynamic[:eval_block] += 1
           end
         when :send, :__send__, :public_send
           if literal?(first_argument(node))
-            @supprimable[:send] += 1
+            @static[:send] += 1
           elsif constant_receiver?(node.receiver)
             @enumerable[:send] += 1
           else
-            @dynamique[:send] += 1
+            @dynamic[:send] += 1
           end
         when :define_method
-          literal?(first_argument(node)) ? @supprimable[:define_method] += 1 : @enumerable[:define_method] += 1
+          literal?(first_argument(node)) ? @static[:define_method] += 1 : @enumerable[:define_method] += 1
         when :alias_method
-          literal?(first_argument(node)) ? @supprimable[:alias] += 1 : @enumerable[:alias] += 1
+          literal?(first_argument(node)) ? @static[:alias] += 1 : @enumerable[:alias] += 1
         when :const_get, :const_set
           if literal?(first_argument(node))
-            @supprimable[:const] += 1
+            @static[:const] += 1
           elsif constant_receiver?(node.receiver)
             @enumerable[:const] += 1
           else
-            @dynamique[:const] += 1
+            @dynamic[:const] += 1
           end
         when :instance_variable_get, :instance_variable_set
-          literal?(first_argument(node)) ? @supprimable[:ivar] += 1 : @enumerable[:ivar] += 1
+          literal?(first_argument(node)) ? @static[:ivar] += 1 : @enumerable[:ivar] += 1
         when :load
           if constant_named?(node.receiver, :Marshal)
-            @supprimable[:marshal_load] += 1
+            @static[:marshal_load] += 1
           end
         when :dump
           if constant_named?(node.receiver, :Marshal)
-            @dynamique[:marshal_dump] += 1
+            @dynamic[:marshal_dump] += 1
           end
         end
-        @dynamique[:object_space] += 1 if constant_named?(node.receiver, :ObjectSpace)
+        @dynamic[:object_space] += 1 if constant_named?(node.receiver, :ObjectSpace)
         super
       end
 
       def visit_alias_method_node(node)
-        @supprimable[:alias] += 1
+        @static[:alias] += 1
         super
       end
 

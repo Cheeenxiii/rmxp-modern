@@ -161,8 +161,8 @@ end
 
 $win32KeyStates = nil
 
-# Certains jeux (Uranium, Insurgence) remplacent Input.update et lisent
-# GetAsyncKeyState. On conserve l'update natif pour rafraîchir les états bruts.
+# Some games (Uranium, Insurgence) replace Input.update and read
+# GetAsyncKeyState. Keep the native update to refresh the raw key states.
 module Input
 	class << self
 		alias_method(:__win32wrap_native_update, :update) unless method_defined?(:__win32wrap_native_update)
