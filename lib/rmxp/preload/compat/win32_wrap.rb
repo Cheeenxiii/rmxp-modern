@@ -14,6 +14,12 @@
 # This preload script provides a subset of Win32API in a cross-platform way, so
 # you can play Win32API-based games on Linux and macOS.
 
+# Each function below is tagged real, neutral or disabled, the classification
+# that `rmxp audit` reports:
+# - real: reproduces the original Windows behaviour by another means;
+# - neutral: the operation has no equivalent here and doing nothing is correct;
+# - disabled: answers so that the game doesn't crash, but the feature is lost.
+
 # To tweak behavior, you can set the following Win32API class constants in an
 # earlier preload script (these are usually only helpful for debugging):
 #
@@ -242,6 +248,8 @@ end
 module Win32API_Impl
 	module Kernel32
 		class GetCurrentThreadId
+			# real: returns the same id as GetWindowThreadProcessId below, so
+			# games comparing the two see the game thread.
 			def call(_args)
 				return 1
 			end
@@ -250,6 +258,7 @@ module Win32API_Impl
 
 	module User32
 		class Keybd_event
+			# real: recognises Alt+Enter and toggles fullscreen, like Windows.
 			Seq = [
 				[0xA4, 0, 0, 0],
 				[0xD, 0, 0, 0],
@@ -280,11 +289,13 @@ module Win32API_Impl
 		end
 
 		class GetForegroundWindow
+			# real: the game window is the foreground window while we run it.
 			def call(_args)
 				return 1
 			end
 		end
 		class GetWindowThreadProcessId
+			# real: writes the game's pseudo process id (see GetCurrentThreadId).
 			def call(args)
 				out = args[1]
 				memcpy_string(out, [1].pack('l')) if out.is_a?(String)
@@ -292,17 +303,20 @@ module Win32API_Impl
 			end
 		end
 		class GetKeyState
+			# real: state of the key, from the raw key states of the engine.
 			def call(vkey)
 				return common_keystate(vkey[0])
 			end
 		end
 		class GetAsyncKeyState
+			# real: same, with the high bit Windows uses for "down".
 			PRESSED_BIT = (1 << 15)
 			def call(vkey)
 				return common_keystate(vkey[0]) == 1 ? PRESSED_BIT : 0
 			end
 		end
 		class GetKeyboardState
+			# real: fills the Windows keyboard-state buffer from the engine.
 			PRESSED_BIT = 0x80
 			def call(args)
 				out_states = args[0]
@@ -317,6 +331,8 @@ module Win32API_Impl
 		end
 
 		class ShowCursor
+			# real: reference-counts ShowCursor calls and shows the cursor
+			# when the count is non-negative.
 			def initialize
 				@cursor_count = 0
 			end
@@ -332,6 +348,7 @@ module Win32API_Impl
 		end
 
 		class GetCursorPos
+			# real: the mouse position, from the engine.
 			def call(args)
 				out = [Input.mouse_x, Input.mouse_y].pack('ll')
 				memcpy_string(args[0], out)
@@ -340,6 +357,7 @@ module Win32API_Impl
 		end
 
 		class GetClientRect
+			# real: the client area is the whole game window.
 			def call(args)
 				return 0 if args[0] != 42
 				rect = [0, 0, 640, 480]
@@ -354,12 +372,15 @@ module Win32API_Impl
 		end
 
 		class ScreenToClient
+			# neutral: there is no window decoration to subtract, so leaving
+			# the coordinates alone is the correct behaviour.
 			def call(args)
 				return 1
 			end
 		end
 
 		class FindWindowA
+			# real: answers a pseudo handle for the RGSS Player window.
 			def call(args)
 				if args[0] == "RGSS Player"
 					return 42
@@ -391,9 +412,11 @@ class Win32API
 		func = kappatalize(func)
 
 		if !System.is_windows? or !NATIVE_ON_WINDOWS
-			if Win32API_Impl.const_defined?(dll)
+			# Only real constant names can be looked up: some games pass a DLL
+			# name with spaces ("RGSS Linker.dll") or a path.
+			if dll.match?(/\A[A-Z][A-Za-z0-9_]*\z/) && Win32API_Impl.const_defined?(dll)
 				dll_impl = Win32API_Impl.const_get(dll)
-				if dll_impl.const_defined?(func)
+				if func.match?(/\A[A-Z][A-Za-z0-9_]*\z/) && dll_impl.const_defined?(func)
 					@mkxp_wrap_impl = dll_impl.const_get(func).new
 					return
 				end
@@ -430,6 +453,9 @@ class Win32API
 		end
 
 		if TOLERATE_ERRORS
+			# disabled: a function we don't implement returns 0 so the game
+			# keeps running, but whatever it asked for is lost. `rmxp audit`
+			# lists the Win32API functions a game calls without a shim.
 			System.puts("[Win32API] [#{@dll}:#{@func}] #{args.to_s}") if !@called
 			@called = true
 			return 0

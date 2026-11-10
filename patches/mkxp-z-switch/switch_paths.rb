@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2026 Cheeenxiii
 # SPDX-License-Identifier: MIT
 
-# After the port changes into the game directory, make the load paths
+# real: after the port changes into the game directory, make the load paths
 # absolute so require finds them (Essentials games push relative paths such
 # as "stdlib" or "preload" onto $LOAD_PATH).
 root = Dir.pwd

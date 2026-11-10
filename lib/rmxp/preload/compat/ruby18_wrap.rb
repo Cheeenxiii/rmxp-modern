@@ -14,10 +14,12 @@
 # them.
 
 class Hash
+  # real: Ruby 1.8's Hash#index is today's Hash#key.
   def index(*args)
     key(*args)
   end
 
+  # real: Ruby 1.8 printed a Hash by concatenating each key and value.
   def to_s
     return self.reduce("") do |sentence, (key, value)|
       sentence + "#{key.to_s}#{to_s}"
@@ -26,12 +28,30 @@ class Hash
 end
 
 class Array
+  # real: Ruby 1.8's Array#to_s is today's Array#join.
   def to_s
     return self.join("")
   end
 end
 
+class Array
+  # real: Ruby 1.8's map/collect without a block returned a copy of the
+  # array; Ruby 3 returns an Enumerator. A few old scripts rely on the copy.
+  alias_method :__rmxp18_map, :map unless method_defined?(:__rmxp18_map)
+  alias_method :__rmxp18_collect, :collect unless method_defined?(:__rmxp18_collect)
+
+  def map(&block)
+    block ? __rmxp18_map(&block) : dup
+  end
+
+  def collect(&block)
+    block ? __rmxp18_collect(&block) : dup
+  end
+end
+
+
 class Time
+  # real: Ruby 1.8's Time#to_s format (no sub-second, English names).
   def to_s
     return strftime("%a %b %d %H:%M:%S %Z %Y")
   end
@@ -42,6 +62,8 @@ end
 #-----------------------------------------------------------------------------
 module MarshalWrapper
 
+  # real: writes strings as BINARY and Time in the 1.8 Marshal layout, so the
+  # bytes match what the game's Ruby 1.8 wrote.
   # Recursively copy an object graph, forcing every String to BINARY
   # encoding while preserving shared references and circular references.
   def to_binary(obj, seen = {})
@@ -134,6 +156,7 @@ module MarshalWrapper
     end
   end
 
+  # real: every Marshal.dump goes through the 1.8 layout above.
   def dump(obj, *args)
     super(to_binary(obj), *args)
   end

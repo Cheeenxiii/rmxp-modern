@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2026 Cheeenxiii
 # SPDX-License-Identifier: MIT
 
-# Caches System.power_state. Essentials v19+ calls pbBatteryLow? every
+# real: caches System.power_state. Essentials v19+ calls pbBatteryLow? every
 # frame, and on some platforms SDL_GetPowerInfo costs about 1 ms per call.
 # The value is refreshed every 5 seconds by default; set
 # RMXP_POWER_CACHE_SECONDS=0 to disable the cache.

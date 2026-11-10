@@ -14,6 +14,10 @@
 # This preload script provides a subset of Win32API in a cross-platform way, so
 # you can play Win32API-based games on Linux and macOS.
 
+# This is the RomFS copy loaded by the Switch port; lib/rmxp/preload/compat/
+# win32_wrap.rb is the copy `migrate` installs in games. Each function below is
+# tagged real, neutral or disabled (the classification `rmxp audit` reports).
+
 # To tweak behavior, you can set the following Win32API class constants in an
 # earlier preload script (these are usually only helpful for debugging):
 #
@@ -234,6 +238,7 @@ end
 
 module Win32API_Impl
 	module User32
+		# real: Alt+Enter toggles fullscreen, like Windows.
 		class Keybd_event
 			Seq = [
 				[0xA4, 0, 0, 0],
@@ -264,17 +269,20 @@ module Win32API_Impl
 			end
 		end
 
+		# real: key state from the engine's raw key states.
 		class GetKeyState
 			def call(vkey)
 				return common_keystate(vkey[0])
 			end
 		end
+		# real: same, with the high bit Windows uses for "down".
 		class GetAsyncKeyState
 			PRESSED_BIT = (1 << 15)
 			def call(vkey)
 				return common_keystate(vkey[0]) == 1 ? PRESSED_BIT : 0
 			end
 		end
+		# real: fills the Windows keyboard-state buffer.
 		class GetKeyboardState
 			PRESSED_BIT = 0x80
 			def call(args)
@@ -289,6 +297,7 @@ module Win32API_Impl
 			end
 		end
 
+		# real: reference-counts ShowCursor and shows the cursor when non-negative.
 		class ShowCursor
 			def initialize
 				@cursor_count = 0
@@ -304,6 +313,7 @@ module Win32API_Impl
 			end
 		end
 
+		# real: the mouse position from the engine.
 		class GetCursorPos
 			def call(args)
 				out = [Input.mouse_x, Input.mouse_y].pack('ll')
@@ -312,6 +322,7 @@ module Win32API_Impl
 			end
 		end
 
+		# real: the client area is the whole game window.
 		class GetClientRect
 			def call(args)
 				return 0 if args[0] != 42
@@ -326,12 +337,14 @@ module Win32API_Impl
 			end
 		end
 
+		# neutral: no window decoration to subtract; no-op is correct.
 		class ScreenToClient
 			def call(args)
 				return 1
 			end
 		end
 
+		# real: pseudo handle for the RGSS Player window.
 		class FindWindowA
 			def call(args)
 				if args[0] == "RGSS Player"
@@ -404,6 +417,7 @@ class Win32API
 
 		if TOLERATE_ERRORS
 			System.puts("[Win32API] [#{@dll}:#{@func}] #{args.to_s}") if !@called
+			# disabled: unknown function; returns 0 so the game keeps running.
 			@called = true
 			return 0
 		else

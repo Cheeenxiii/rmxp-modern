@@ -14,14 +14,17 @@
 
 module MKXP
 	class << self
+		# real: today's System.data_directory.
 		def data_directory(*args)
 			System::data_directory(*args)
 		end
 
+		# real: today's System.puts.
 		def puts(*args)
 			System::puts(*args)
 		end
 
+		# real: today's Input.raw_key_states, with 1.8 getbyte/setbyte.
 		def raw_key_states(*args)
 			states = Input::raw_key_states(*args)
 			class << states
@@ -35,6 +38,7 @@ module MKXP
 			states
 		end
 
+		# real: today's Input.mouse_in_window.
 		def mouse_in_window(*args)
 			Input::mouse_in_window(*args)
 		end

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 # SPDX-License-Identifier: Ruby OR BSD-2-Clause
-# Copy of the "weakref" library 0.1.1 from the Ruby standard library
+# real: full copy of the "weakref" library from the Ruby standard
+# library, so the feature keeps working on Switch.
 # (https://github.com/ruby/weakref). Copyright Yukihiro Matsumoto
 # and the Ruby contributors.
 require "delegate"

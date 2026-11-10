@@ -17,7 +17,8 @@ module Rmxp
                   preload/mkxp_wrap.rb preload/add_stdlib.rb preload/power_cache.rb preload/tmp_env.rb preload/errno_dir.rb preload/input_ext.rb].freeze
 
     Result = Struct.new(:scripts, :regexes, :dynamic_flags, :when_colons, :break_fixes,
-                        :read_bytes, :parse_errors, keyword_init: true)
+                        :read_bytes, :proc_returns, :legacy_aliases, :skipped_scripts,
+                        :parse_errors, keyword_init: true)
 
     def initialize(game_dir, out_dir)
       @game_dir = File.expand_path(game_dir)
@@ -27,27 +28,33 @@ module Rmxp
     def run
       raise ArgumentError, "game not found: #{@game_dir}" unless Dir.exist?(@game_dir)
       raise ArgumentError, "output already exists: #{@out_dir}" if File.exist?(@out_dir)
+      check_archives
 
       FileUtils.mkdir_p(@out_dir)
       FileUtils.cp_r(File.join(@game_dir, "."), @out_dir)
       FileUtils.chmod_R("u+w", @out_dir)
       scripts_dir = File.join(@out_dir, "scripts")
       Rmxp::Scripts.unpack(File.join(@out_dir, "Data/Scripts.rxdata"), scripts_dir)
+      skipped_scripts = skip_windows_only_scripts(scripts_dir)
 
       regexes = 0
       dynamic = 0
       when_colons = 0
       break_fixes = 0
       read_bytes = 0
+      proc_returns = 0
+      legacy_aliases = 0
       parse_errors = 0
       Dir.glob(File.join(scripts_dir, "*.rb")).sort.each do |path|
         source = File.binread(path)
-        out, count, dyn, whens, breaks, bytes, error = transform_source(source)
+        out, count, dyn, whens, breaks, bytes, returns, aliases, error = transform_source(source)
         regexes += count
         dynamic += dyn
         when_colons += whens
         break_fixes += breaks
         read_bytes += bytes
+        proc_returns += returns
+        legacy_aliases += aliases
         parse_errors += 1 if error
         File.binwrite(path, out) unless out == source
       end
@@ -58,7 +65,9 @@ module Rmxp
       ensure_game_ini
       Result.new(scripts: Dir.glob(File.join(scripts_dir, "*.rb")).length,
                  regexes: regexes, dynamic_flags: dynamic, when_colons: when_colons,
-                 break_fixes: break_fixes, read_bytes: read_bytes, parse_errors: parse_errors)
+                 break_fixes: break_fixes, read_bytes: read_bytes,
+                 proc_returns: proc_returns, legacy_aliases: legacy_aliases,
+                 skipped_scripts: skipped_scripts, parse_errors: parse_errors)
     end
 
     private
@@ -71,7 +80,7 @@ module Rmxp
         "read(#{Regexp.last_match(1)}).getbyte(0)"
       end
       result = Prism.parse(source)
-      return [source, 0, 0, whens, 0, read_bytes, true] unless result.value
+      return [source, 0, 0, whens, 0, read_bytes, 0, 0, true] unless result.value
 
       replacements = []
       queue = [result.value]
@@ -114,12 +123,14 @@ module Rmxp
         end
       end
       out, breaks = fix_invalid_breaks(out)
+      out, returns = fix_returns_in_blocks(out)
+      out, aliases = fix_legacy_string_aliases(out)
       begin
         RubyVM::InstructionSequence.compile(out)
       rescue SyntaxError
-        return [out, replacements.length, dynamic, whens, breaks, read_bytes, true]
+        return [out, replacements.length, dynamic, whens, breaks, read_bytes, returns, aliases, true]
       end
-      [out, replacements.length, dynamic, whens, breaks, read_bytes, false]
+      [out, replacements.length, dynamic, whens, breaks, read_bytes, returns, aliases, false]
     end
 
     # Ruby 1.8 accepted `when value:`; Prism reports the offending ':'. Only
@@ -213,6 +224,112 @@ module Rmxp
       text
     rescue RegexpError
       nil
+    end
+
+    # mkxp-z loads an RGSS archive before the loose files, and the games
+    # themselves detect the archive and delete extracted data (Uranium deletes
+    # Data/Constants.rxdata). Refuse a game still shipped encrypted: the user
+    # must extract the archive first with an external tool.
+    def check_archives
+      found = Dir.children(@game_dir).select { |name| name.match?(/\.(rgssad|rgss2a|rgss3a)\z/i) }
+      return if found.empty?
+
+      raise ArgumentError,
+            "#{@game_dir} ships #{found.join(', ')}; extract the archive first, " \
+            "mkxp-z would load it instead of the migrated files"
+    end
+
+    # Ruby 1.8 allowed `return` in a Proc defined at the top level; it aborted
+    # only that callback. Ruby 3 raises LocalJumpError once the defining
+    # context is gone. In a block outside any method, `next` does the same
+    # thing. Returns inside a method or a lambda keep their meaning.
+    def fix_returns_in_blocks(source)
+      result = Prism.parse(source)
+      return [source, 0] unless result.value
+
+      nodes = []
+      walk = lambda do |node, defs, lambdas, blocks|
+        case node
+        when Prism::DefNode
+          node.compact_child_nodes.each { |child| walk.call(child, defs + 1, lambdas, blocks) }
+          next
+        when Prism::LambdaNode
+          node.compact_child_nodes.each { |child| walk.call(child, defs, lambdas + 1, blocks) }
+          next
+        when Prism::BlockNode
+          node.compact_child_nodes.each { |child| walk.call(child, defs, lambdas, blocks + 1) }
+          next
+        when Prism::ReturnNode
+          nodes << node if defs.zero? && lambdas.zero? && blocks.positive?
+        end
+        if node.is_a?(Prism::CallNode) && node.name == :lambda && node.block
+          # `lambda { ... }` keeps its local return, like Ruby 1.8.
+          (node.compact_child_nodes - [node.block]).each { |child| walk.call(child, defs, lambdas, blocks) }
+          walk.call(node.block, defs, lambdas + 1, blocks)
+          next
+        end
+        node.compact_child_nodes.each { |child| walk.call(child, defs, lambdas, blocks) }
+      end
+      walk.call(result.value, 0, 0, 0)
+
+      out = source.dup
+      nodes.sort_by { |node| -node.location.start_offset }.each do |node|
+        offset = node.location.start_offset
+        out[offset, 6] = "next" if out.byteslice(offset, 6) == "return"
+      end
+      [out, nodes.length]
+    end
+
+    # Scripts that integrate Windows-only native libraries for their audio
+    # (the Community Script Project's RGSS Linker / FmodEx add-on, used by
+    # several pre-v19 games). They raise LoadError on mkxp-z, which already
+    # provides the audio; keep them out of the migrated script list.
+    def skip_windows_only_scripts(scripts_dir)
+      manifest_path = File.join(@out_dir, Rmxp::Scripts::MANIFEST)
+      manifest = YAML.safe_load_file(manifest_path)
+      kept = []
+      skipped = 0
+      manifest.fetch("scripts").each do |entry|
+        path = File.join(scripts_dir, entry["file"])
+        if File.file?(path) && File.binread(path).match?(/RGSSLinker_Initialize|RGSS FmodEx\.dll/)
+          File.delete(path)
+          skipped += 1
+        else
+          kept << entry
+        end
+      end
+      manifest["scripts"] = kept
+      File.write(manifest_path, YAML.dump(manifest))
+      skipped
+    end
+
+    # Some scripts alias String#getbyte/setbyte/bytesize to 1.8's String#[]
+    # and friends, for Ruby 1.9 code that ran on 1.8. On Ruby 3 the built-in
+    # methods already have the 1.8 return values, and the aliases make
+    # getbyte return a String again (which breaks migrated shims and saves).
+    def fix_legacy_string_aliases(source)
+      result = Prism.parse(source)
+      return [source, 0] unless result.value
+
+      legacy = { "getbyte" => "[]", "setbyte" => "[]=", "bytesize" => "size" }
+      nodes = []
+      queue = [result.value]
+      until queue.empty?
+        node = queue.shift
+        if node.is_a?(Prism::AliasMethodNode) && legacy[node.new_name.unescaped] == node.old_name.unescaped
+          nodes << node
+        end
+        queue.concat(node.compact_child_nodes)
+      end
+
+      out = source.dup
+      nodes.sort_by { |node| -node.location.start_offset }.each do |node|
+        start = node.location.start_offset
+        stop = node.location.end_offset
+        stop += 1 while out.byteslice(stop, 1) == " "
+        out[start...stop] = "nil"
+      end
+      [out, nodes.length]
     end
 
     def append_string_input_compat(scripts_dir)

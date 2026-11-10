@@ -94,6 +94,20 @@ script fragments are included. Each use is classed as:
 `--scripts` audits a directory of `.rb` files directly (Pokémon SDK, for
 instance).
 
+It also reports the compatibility-shim functions the game actually calls, with
+the category of each shim:
+
+- `real`: the original behaviour is reproduced by another means;
+- `neutral`: the operation has no equivalent outside Windows, and doing nothing
+  is correct;
+- `disabled`: the shim answers so that the game doesn't crash, but the feature
+  is lost. `win32api` lists the DLL and function of every `Win32API.new` call;
+  a function without a shim is marked as returning 0.
+
+The categories are written at the functions in `lib/rmxp/preload/compat/` and
+`patches/mkxp-z-switch/`; see [compatibility.md](compatibility.md#nintendo-switch)
+for the player-facing limitations.
+
 ## migrate
 
 ```bash
@@ -108,8 +122,14 @@ The transformations are generic, never specific to one game:
 - regexps with byte escapes, and the `/n` flag on interpolated regexps;
 - Ruby 1.8's `when value:` syntax;
 - `break`/`next` outside a loop;
+- `return` inside a proc defined at the top level, which aborted only that
+  callback in Ruby 1.8 and raises `LocalJumpError` in Ruby 3;
 - `read(1)[0]`, which returned a byte in Ruby 1.8;
-- `StringInput#getc`, for the same reason.
+- `StringInput#getc`, for the same reason;
+- `alias getbyte []` and similar aliases that made Ruby 3's String methods
+  return strings again;
+- scripts that load the Windows RGSS Linker/FmodEx audio DLLs are dropped: they
+  only work on Windows, and mkxp-z provides the audio.
 
 It also installs preload scripts in `OUT/preload/` and registers them in
 `mkxp.json`: Win32API and Ruby 1.8 shims (`Thread.critical`, `ENV["TEMP"]`,
@@ -120,6 +140,9 @@ it.
 
 `migrate` copies the whole game directory, so run it on a complete game
 (with Graphics, Audio and Fonts), not on a directory that only has `Data/`.
+It refuses a game that still ships its `Game.rgssad` (or `.rgss2a`/`.rgss3a`):
+mkxp-z loads that archive before the loose files, so the migrated scripts would
+be ignored. Extract the archive first.
 
 ## Encrypted games
 

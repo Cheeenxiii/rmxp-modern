@@ -1,8 +1,9 @@
 # SPDX-FileCopyrightText: 2026 Cheeenxiii
 # SPDX-License-Identifier: MIT
 
-# Reborn loads the native discord gem (Rich Presence), which the port does
-# not have. The game copes with an inactive presence if the methods exist.
+# disabled: Reborn loads the native discord gem (Rich Presence), which the
+# port does not have. The methods exist so the game keeps running, but Rich
+# Presence is lost.
 module Discord
   def self.connected?; false; end
   def self.connect(*_args); nil; end

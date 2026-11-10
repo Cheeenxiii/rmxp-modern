@@ -1,9 +1,9 @@
 # SPDX-FileCopyrightText: 2026 Cheeenxiii
 # SPDX-License-Identifier: MIT
 
-# The port's Ruby build has no net/http. Reborn requires it at startup for
-# its updater: mark the feature as loaded and let calls fail cleanly (the
-# updater rescues StandardError).
+# disabled: the port's Ruby build has no net/http. Reborn requires it at
+# startup for its updater: the feature is marked as loaded and calls fail
+# cleanly (the updater rescues StandardError), but no request is ever made.
 module Net
   class HTTP
     class Get; end
