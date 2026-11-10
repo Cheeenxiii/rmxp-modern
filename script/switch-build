@@ -1,0 +1,137 @@
+#!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Cheeenxiii
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Builds a standalone Switch .nro with a game inside its RomFS: one
+# self-contained .nro per game, with the game's name and icon.
+#
+# The game is installed to sdmc:/switch/mkxp-z/<name>/ on first launch (RomFS
+# is read-only), so saves and temporary files work normally.
+#
+# usage: script/switch-build GAME [OUT.nro] [--name NAME] [--icon IMAGE]
+#
+# Needs script/setup to have been run once, and either devkitPro in the
+# environment or Docker (devkitpro/devkita64:20251117).
+
+set -euo pipefail
+
+root="$(cd "$(dirname "$0")/.." && pwd)"
+mkxpz="$root/vendor/mkxp-z"
+romfs="$mkxpz/switch/romfs-root"
+
+game="${1:?usage: script/switch-build GAME [OUT.nro] [--name NAME] [--icon IMAGE]}"
+shift
+out=""
+name=""
+icon=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --name) name="${2:?--name needs a value}"; shift 2 ;;
+    --icon) icon="${2:?--icon needs a value}"; shift 2 ;;
+    -*) echo "unknown option: $1" >&2; exit 2 ;;
+    *) out="$1"; shift ;;
+  esac
+done
+
+game="$(cd "$game" && pwd)"
+[ -f "$game/Game.ini" ] || { echo "no Game.ini in $game" >&2; exit 1; }
+[ -f "$mkxpz/switch/switch.ini" ] || {
+  echo "vendor/mkxp-z is not set up; run script/setup first" >&2
+  exit 1
+}
+
+slug_of() {
+  printf '%s' "$1" | tr ' ' '_' | sed 's/[^A-Za-z0-9._-]//g'
+}
+
+# Game name: --name, else the Title of Game.ini.
+if [ -z "$name" ]; then
+  name="$(sed -n 's/^Title=//p' "$game/Game.ini" | head -1 | tr -d '\r')"
+fi
+[ -n "$name" ] || name="$(basename "$game")"
+name="$(printf '%s' "$name" | tr -cd '[:print:]' | cut -c1-64)"
+slug="$(slug_of "$name")"
+[ -n "$slug" ] || slug="game"
+if [ -z "$out" ]; then
+  out="$root/tmp/switch-build/$slug.nro"
+fi
+mkdir -p "$(dirname "$out")"
+out="$(cd "$(dirname "$out")" && pwd)/$(basename "$out")"
+
+# Icon: --icon, else the game's title picture. Converted to the 256x256 JPEG
+# the console expects.
+if [ -z "$icon" ]; then
+  for candidate in "$game"/Graphics/Titles/*.png "$game"/Graphics/Titles/*.jpg \
+                   "$game"/Graphics/Pictures/title*.png "$game"/Graphics/Pictures/title*.jpg; do
+    [ -f "$candidate" ] && { icon="$candidate"; break; }
+  done
+fi
+
+cleanup() {
+  rm -rf "$romfs/game" "$romfs/name.txt" "$romfs/version.txt" "$romfs/icon.jpg"
+}
+trap cleanup EXIT
+
+rm -rf "$romfs/game"
+mkdir -p "$romfs/game"
+echo "staging $game in the RomFS"
+cp -a "$game/." "$romfs/game/"
+chmod -R u+w "$romfs/game"
+# Windows-only files, never used by the engine on the console.
+find "$romfs/game" -maxdepth 2 \( -iname '*.exe' -o -iname '*.dll' -o -iname '*.lnk' \
+  -o -iname '*.rgssad' -o -iname '*.rgss2a' -o -iname '*.rgss3a' \) -delete
+rm -rf "$romfs/game/scripts" "$romfs/game/scripts.yml"
+
+printf '%s\n' "$name" > "$romfs/name.txt"
+version="$( { sha256sum "$game/Game.ini"; sha256sum "$game/Data/Scripts.rxdata" 2>/dev/null || true; } | sha256sum | cut -d' ' -f1)"
+printf '%s\n' "$version" > "$romfs/version.txt"
+
+if [ -n "$icon" ] && [ -f "$icon" ]; then
+  if command -v ffmpeg >/dev/null; then
+    ffmpeg -loglevel error -y -i "$icon" -vf "scale=256:256:force_original_aspect_ratio=decrease,pad=256:256:(ow-iw)/2:(oh-ih)/2" "$romfs/icon.jpg"
+    echo "icon: $icon"
+  else
+    echo "warning: ffmpeg not found, building without an icon" >&2
+  fi
+fi
+
+# Build with Docker by default: a system devkitPro can be older than the
+# portlibs mkxp-z needs. MKXP_SWITCH_NATIVE=1 uses the environment's devkitPro.
+docker_needed=1
+if [ "${MKXP_SWITCH_NATIVE:-0}" = 1 ] && [ -n "${DEVKITPRO:-}" ] && command -v meson >/dev/null; then
+  docker_needed=0
+fi
+if [ "$docker_needed" = 1 ] && ! command -v docker >/dev/null; then
+  echo "docker not found; set MKXP_SWITCH_NATIVE=1 with devkitA64 in the environment" >&2
+  exit 1
+fi
+
+build() {
+  if [ "$docker_needed" = 1 ]; then
+    docker run --rm -v "$root":/src -w /src/vendor/mkxp-z devkitpro/devkita64:20251117 \
+      bash -lc 'git config --global --add safe.directory "*"; \
+        apt-get update -qq && apt-get install -y -qq bison git ruby python3-pip >/dev/null && \
+        pip3 install --break-system-packages -q meson && \
+        if [ ! -f build-nro/.switch-build-ok ]; then rm -rf build-nro; fi; \
+        (meson setup --reconfigure --cross-file switch/switch.ini --buildtype release build-nro 2>/dev/null || \
+         meson setup --cross-file switch/switch.ini --buildtype release build-nro) && \
+        touch build-nro/.switch-build-ok && \
+        rm -f build-nro/switch/nro/mkxp-z.nro build-nro/switch/nro/mkxp-z.nacp && \
+        ninja -C build-nro'
+  else
+    cd "$mkxpz"
+    rm -rf build-nro-native
+    meson setup --cross-file switch/switch.ini --buildtype release build-nro-native
+    ninja -C build-nro-native
+  fi
+}
+
+echo "building the .nro (this can take several minutes)"
+build
+
+if [ "$docker_needed" = 1 ]; then build_dir="$mkxpz/build-nro"; else build_dir="$mkxpz/build-nro-native"; fi
+nro="$build_dir/switch/nro/mkxp-z.nro"
+[ -f "$nro" ] || { echo "build produced no .nro" >&2; exit 1; }
+cp "$nro" "$out"
+echo "nro: $out"
+echo "size: $(du -h "$out" | cut -f1)  sha256: $(sha256sum "$out" | cut -d' ' -f1)"

@@ -1,0 +1,47 @@
+# SPDX-FileCopyrightText: 2026 Cheeenxiii
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Builds the patched mkxp-z for the Nintendo Switch and uploads the .nro.
+name: Switch
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: devkitpro/devkita64:20251117
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Install dependencies
+        run: |
+          apt-get update
+          apt-get install -y bison git ruby python3-pip
+          pip3 install --break-system-packages meson
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Apply patches
+        run: |
+          git config --global --add safe.directory '*'
+          script/setup
+
+      - name: Configure
+        working-directory: vendor/mkxp-z
+        run: meson setup --cross-file switch/switch.ini --buildtype release build
+
+      - name: Build
+        working-directory: vendor/mkxp-z
+        run: ninja -C build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mkxp-z-switch
+          path: vendor/mkxp-z/build/switch/nro/mkxp-z.nro
+          if-no-files-found: error

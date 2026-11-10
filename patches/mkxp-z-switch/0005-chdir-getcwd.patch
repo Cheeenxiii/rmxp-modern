@@ -1,18 +1,21 @@
+# Uses the POSIX chdir and getcwd on Switch, which understand device prefixes.
+
 diff --git a/src/filesystem/filesystemImpl.cpp b/src/filesystem/filesystemImpl.cpp
-index 2258eed..1ac079a 100644
+index 2258eeda..86444aa8 100644
 --- a/src/filesystem/filesystemImpl.cpp
 +++ b/src/filesystem/filesystemImpl.cpp
-@@ -22,6 +22,9 @@ namespace fs = ghc::filesystem;
+@@ -22,6 +22,10 @@ namespace fs = ghc::filesystem;
  
  #include <fstream>
  #include <cstring>
 +#ifdef __SWITCH__
 +#include <unistd.h>
++#include <limits.h>
 +#endif
  
  // https://stackoverflow.com/questions/12774207/fastest-way-to-check-if-a-file-exist-using-standard-c-c11-c
  bool filesystemImpl::fileExists(const char *path) {
-@@ -46,6 +49,16 @@ std::string filesystemImpl::contentsOfFileAsString(const char *path) {
+@@ -46,6 +50,16 @@ std::string filesystemImpl::contentsOfFileAsString(const char *path) {
  
  // chdir and getcwd do not support unicode on Windows
  bool filesystemImpl::setCurrentDirectory(const char *path) {
@@ -29,7 +32,7 @@ index 2258eed..1ac079a 100644
      fs::path stdPath(path);
      fs::current_path(stdPath);
      bool ret;
-@@ -57,6 +70,7 @@ bool filesystemImpl::setCurrentDirectory(const char *path) {
+@@ -57,9 +71,16 @@ bool filesystemImpl::setCurrentDirectory(const char *path) {
          ret = false;
      }
      return ret;
@@ -37,3 +40,20 @@ index 2258eed..1ac079a 100644
  }
  
  std::string filesystemImpl::getCurrentDirectory() {
++#ifdef __SWITCH__
++    char buf[PATH_MAX];
++    if (getcwd(buf, sizeof(buf)))
++        return std::string(buf);
++    return std::string("");
++#else
+     std::string ret;
+     try {
+         ret = std::string(fs::current_path().string());
+@@ -67,6 +88,7 @@ std::string filesystemImpl::getCurrentDirectory() {
+         throw Exception(Exception::MKXPError, "Failed to retrieve current path");
+     }
+     return ret;
++#endif
+ }
+ 
+ 

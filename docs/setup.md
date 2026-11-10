@@ -5,27 +5,22 @@ games: building mkxp-z for the desktop or for the Nintendo Switch.
 
 ## Fetching mkxp-z
 
-mkxp-z and its Switch port are git submodules in `vendor/`, pinned to the
-commits our patches apply to:
-
-| Submodule | Upstream |
-|---|---|
-| `vendor/mkxp-z` | [mkxp-z/mkxp-z](https://github.com/mkxp-z/mkxp-z), branch `dev` |
-| `vendor/mkxp-z-switch` | [GQster/mkxp-zSwitchPort](https://github.com/GQster/mkxp-zSwitchPort), branch `switch-port` |
+mkxp-z is a git submodule in `vendor/mkxp-z`, pinned to the commit of
+[mkxp-z/mkxp-z](https://github.com/mkxp-z/mkxp-z) (branch `dev`) that our
+patches apply to.
 
 ```bash
-script/setup            # both
-script/setup desktop    # vendor/mkxp-z only
-script/setup switch     # vendor/mkxp-z-switch only
+script/setup
 ```
 
-`script/setup` fetches the submodules and applies the patches from
-[`patches/`](../patches/). For the Switch port, it also copies our Ruby
-preloads into the port's RomFS. Running it again on a patched checkout does
-nothing. To start over, reset the submodule:
+`script/setup` fetches the submodule, applies the desktop and Switch patches
+from [`patches/`](../patches/) and copies the Switch preload scripts to
+`vendor/mkxp-z/switch/romfs-root/`. The Switch changes only take effect in a
+Switch build. Running it again on a patched checkout does nothing. To start
+over:
 
 ```bash
-git -C vendor/mkxp-z checkout .
+git -C vendor/mkxp-z reset --hard
 ```
 
 ## Desktop (Linux)
@@ -60,32 +55,78 @@ For other platforms, see mkxp-z's own documentation and CI
 
 ## Nintendo Switch
 
-The port builds with devkitPro's devkitA64 toolchain and libnx. The simplest
-way is devkitPro's Docker image:
+The same patched `vendor/mkxp-z` builds for the Switch with devkitPro's
+devkitA64 toolchain and libnx. The simplest way is devkitPro's Docker image,
+which is also what CI uses (`.github/workflows/switch.yml`, which uploads the
+`.nro` as an artifact):
 
 ```bash
-# from the root of this repository, so git works inside the submodule
-docker run --rm -it -v "$PWD":/src -w /src/vendor/mkxp-z-switch devkitpro/devkita64:20251117 bash
-apt update && apt install -y bison git ruby python3-pip g++ libsdl2-dev pkg-config
+# from the root of this repository, after script/setup
+docker run --rm -it -v "$PWD":/src -w /src/vendor/mkxp-z devkitpro/devkita64:20251117 bash
+apt-get update && apt-get install -y bison git ruby python3-pip
 pip3 install --break-system-packages meson
 meson setup --cross-file switch/switch.ini --buildtype release build
 ninja -C build
 ```
 
-This produces `vendor/mkxp-z-switch/build/switch/nro/mkxp-z.nro`. See
-`vendor/mkxp-z-switch/switch/README.md` for installing it on the console and
-for debugging.
+This produces `vendor/mkxp-z/build/switch/nro/mkxp-z.nro`.
 
-To play a game:
+The `.nro` looks for the game folder in this order:
+
+1. a game inside the `.nro`'s RomFS, as built by `script/switch-build` below;
+2. the folder given as its first argument (a forwarder can pass one);
+3. the folder the `.nro` is in (the Homebrew Menu starts homebrew there);
+4. the fixed folder `sdmc:/switch/mkxp-z/game/`.
+
+To play a game from the Homebrew Menu:
 
 1. Migrate it if it predates Essentials v19 (`bin/rmxp migrate`).
-2. Copy the `.nro` to the SD card as `/switch/mkxp-z.nro`.
-3. Copy the game folder to `/switch/mkxp-z/Games/<name>/`.
-4. Start the Homebrew Menu by holding R while launching a title, not from the
+2. Copy the game folder to the SD card, for example `/switch/<name>/`, and
+   `mkxp-z.nro` into that folder, or build the game into the `.nro` (below).
+3. Start the Homebrew Menu by holding R while launching a title, not from the
    Album, which gives homebrew too little memory.
 
-Our Switch results come from the Eden emulator, not from hardware; see
-[compatibility.md](compatibility.md#nintendo-switch).
+### Standalone `.nro` (game inside the RomFS)
+
+`script/switch-build` puts a game inside the `.nro`'s RomFS, so one file is
+enough to play. The game's `Title` from `Game.ini` becomes the application
+name, and the game's title picture becomes the icon:
+
+```bash
+bin/rmxp migrate path/to/game out/game     # pre-v19 games only
+script/switch-build out/game               # -> tmp/switch-build/<name>.nro
+script/switch-build out/game Uranium.nro --name "Pokémon Uranium" --icon cover.png
+```
+
+The RomFS is read-only, so the first launch copies the game once to
+`sdmc:/switch/mkxp-z/<name>/` and runs it from there; a rebuild of the `.nro`
+reinstalls the game when its `Game.ini` or `Scripts.rxdata` changes. The
+engines' log is written in that installed folder (or `sdmc:/switch/mkxp-z/`
+when the game runs from the RomFS). A large game makes a large `.nro` (the
+whole game is embedded), which may exceed what the Homebrew Menu can load; a
+small kit is the safe case.
+
+The script needs `script/setup` to have run once, and either devkitPro in the
+environment or Docker with the `devkitpro/devkita64:20251117` image.
+
+Game-side preloads travel with the game: if a game needs one (Reborn's
+`Input::E/F/D` shim, for instance), put it in the game's `preload/` folder and
+list it in the game's `mkxp.json` before running `script/switch-build`.
+
+Controls go through mkxp-z's usual bindings, following the Nintendo labels:
+A confirms and B cancels. ZL, ZR and minus are bound to F5, F6 and F7, which
+some games read as `Input::E`, `F` and `D`. MIDI music is skipped, and HTTP
+requests return nothing.
+
+Each launch writes the engine's and the game's output to `mkxp-z.log` in the
+game folder (or on the SD card when the game runs from a read-only RomFS),
+replacing the previous log. When a game crashes, look there first.
+
+The Switch support is based on
+[GQster's mkxp-z Switch port](https://github.com/GQster/mkxp-zSwitchPort).
+It has not been tested on hardware; see
+[compatibility.md](compatibility.md#nintendo-switch) for what was tested under
+the Eden emulator with that port.
 
 ## Spinel
 

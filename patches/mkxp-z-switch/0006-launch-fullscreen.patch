@@ -1,0 +1,70 @@
+# Runs the game given as argument, or the one next to the .nro, full screen.
+# Window handling from GQster's mkxp-z Switch port.
+
+diff --git a/src/eventthread.cpp b/src/eventthread.cpp
+index 82d91ce6..ebe4746b 100644
+--- a/src/eventthread.cpp
++++ b/src/eventthread.cpp
+@@ -488,7 +488,12 @@ void EventThread::process(RGSSThreadData &rtData)
+                         break;
+                         
+                     case REQUEST_WINRESIZE :
++#ifndef __SWITCH__
++                        // On Switch the window is the whole display, and
++                        // resizing it recreates the EGL surface, which Mesa
++                        // does not survive.
+                         SDL_SetWindowSize(win, event.window.data1, event.window.data2);
++#endif
+                         rtData.rqWindowAdjust.clear();
+                         break;
+                         
+diff --git a/src/main.cpp b/src/main.cpp
+index af81d669..d61ec655 100644
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -74,7 +74,7 @@ __declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
+ #include "TouchBar.h"
+ #endif
+ 
+-#if !defined(__ANDROID__) && !defined(__APPLE__) && !defined(_WIN32)
++#if !defined(__ANDROID__) && !defined(__APPLE__) && !defined(_WIN32) && !defined(__SWITCH__)
+ #  define MKXPZ_CHECK_FOR_WAYLAND_SUPPORT
+ #endif
+ 
+@@ -233,7 +233,18 @@ static SDL_Window *initVideo(const Config &conf) {
+ 
+   SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GetHintBoolean(SDL_HINT_OPENGL_ES_DRIVER, SDL_FALSE) ? SDL_GL_CONTEXT_PROFILE_ES : SDL_GL_CONTEXT_PROFILE_CORE | SDL_GL_CONTEXT_PROFILE_COMPATIBILITY);
+ 
+-  SDL_Window *window = SDL_CreateWindow(conf.windowTitle.c_str(), SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, conf.defScreenW, conf.defScreenH, winFlags);
++  int createW = conf.defScreenW, createH = conf.defScreenH;
++#ifdef __SWITCH__
++  // The window is the whole screen: create it at the display's size so that
++  // mkxp-z scales the game itself and keeps its aspect ratio.
++  SDL_DisplayMode desktop;
++  if (SDL_GetDesktopDisplayMode(0, &desktop) == 0) {
++    createW = desktop.w;
++    createH = desktop.h;
++  }
++#endif
++
++  SDL_Window *window = SDL_CreateWindow(conf.windowTitle.c_str(), SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, createW, createH, winFlags);
+   if (window == nullptr) {
+     SDL_QuitSubSystem(SDL_INIT_VIDEO);
+   }
+@@ -266,6 +277,16 @@ int main(int argc, char *argv[]) {
+     if (tmp) {
+       std::strncpy(dataDir, tmp, sizeof(dataDir));
+     }
++#endif
++#ifdef __SWITCH__
++    // The game folder is the first argument (forwarders), or else the folder
++    // the .nro is in.
++    if (argc > 1) {
++      std::strncpy(dataDir, argv[1], sizeof(dataDir) - 1);
++    } else if (argc > 0 && std::strrchr(argv[0], '/')) {
++      std::strncpy(dataDir, argv[0], sizeof(dataDir) - 1);
++      std::strrchr(dataDir, '/')[1] = 0;
++    }
+ #endif
+     if (!dataDir[0]) {
+       std::strncpy(dataDir, mkxp_fs::getDefaultGameRoot().c_str(), sizeof(dataDir));

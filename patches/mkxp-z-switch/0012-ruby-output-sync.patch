@@ -1,0 +1,16 @@
+# Loads stdout_sync.rb first, so that Ruby output reaches the log at once.
+
+diff --git a/src/main.cpp b/src/main.cpp
+index f3fa3035..87c6536a 100644
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -321,7 +321,8 @@ int main(int argc, char *argv[]) {
+     // A shim the game already provides is not loaded twice: win32_wrap
+     // aliases Graphics.update, and loading it twice recurses.
+     static const char *const switchPreloads[] = {
+-      "romfs:/preload/switch_paths.rb", // first: absolute paths for require
++      "romfs:/preload/stdout_sync.rb", // Ruby output reaches the log at once
++      "romfs:/preload/switch_paths.rb", // absolute paths for require
+       "romfs:/preload/stdlib_delegate.rb",
+       "romfs:/preload/stdlib_timeout.rb",
+       "romfs:/preload/stdlib_weakref.rb",

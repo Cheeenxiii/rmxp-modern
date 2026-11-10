@@ -1,0 +1,79 @@
+# Builds PhysFS for libnx, with every directory relative to the game folder.
+# From GQster's mkxp-z Switch port.
+
+diff --git a/subprojects/packagefiles/physfs-switch.patch b/subprojects/packagefiles/physfs-switch.patch
+new file mode 100644
+index 00000000..9529111f
+--- /dev/null
++++ b/subprojects/packagefiles/physfs-switch.patch
+@@ -0,0 +1,60 @@
++# Nintendo Switch (libnx) support: a POSIX platform without CD-ROM support,
++# whose base, pref and user directories are the working directory.
++# From GQster's mkxp-z Switch port.
++
++--- a/src/physfs_platform_posix.c
+++++ b/src/physfs_platform_posix.c
++@@ -85,6 +85,12 @@
++ 
++ char *__PHYSFS_platformCalcUserDir(void)
++ {
+++#ifdef __SWITCH__
+++    /* Nintendo Switch: everything is relative to the working directory */
+++    char *switch_retval = (char *) allocator.Malloc(3);
+++    if (switch_retval) strcpy(switch_retval, "./");
+++    return switch_retval;
+++#endif
++     char *retval = NULL;
++     char *envr = getenv("HOME");
++ 
++--- a/src/physfs_platforms.h
+++++ b/src/physfs_platforms.h
++@@ -66,6 +66,10 @@
++ #  define PHYSFS_NO_CDROM_SUPPORT 1
++ #  define PHYSFS_PLATFORM_UNIX 1
++ #  define PHYSFS_PLATFORM_POSIX 1
+++#elif defined(__SWITCH__)
+++#  define PHYSFS_NO_CDROM_SUPPORT 1
+++#  define PHYSFS_PLATFORM_UNIX 1
+++#  define PHYSFS_PLATFORM_POSIX 1
++ #elif defined(__QNX__)
++ #  define PHYSFS_PLATFORM_QNX 1
++ #  define PHYSFS_PLATFORM_POSIX 1
++--- a/src/physfs_platform_unix.c
+++++ b/src/physfs_platform_unix.c
++@@ -248,6 +248,12 @@
++ 
++ char *__PHYSFS_platformCalcBaseDir(const char *argv0)
++ {
+++#ifdef __SWITCH__
+++    /* Nintendo Switch: everything is relative to the working directory */
+++    char *switch_retval = (char *) allocator.Malloc(3);
+++    if (switch_retval) strcpy(switch_retval, "./");
+++    return switch_retval;
+++#endif
++     char *retval = NULL;
++     const char *envr = NULL;
++ 
++@@ -334,6 +340,12 @@
++ 
++ char *__PHYSFS_platformCalcPrefDir(const char *org, const char *app)
++ {
+++#ifdef __SWITCH__
+++    /* Nintendo Switch: everything is relative to the working directory */
+++    char *switch_retval = (char *) allocator.Malloc(3);
+++    if (switch_retval) strcpy(switch_retval, "./");
+++    return switch_retval;
+++#endif
++     /*
++      * We use XDG's base directory spec, even if you're not on Linux.
++      *  This isn't strictly correct, but the results are relatively sane
+diff --git a/subprojects/physfs.wrap b/subprojects/physfs.wrap
+index ed418832..9dbe59e9 100644
+--- a/subprojects/physfs.wrap
++++ b/subprojects/physfs.wrap
+@@ -6,4 +6,5 @@ source_hash = c0e718a1f5ba464570a383c12771879aeddb5dabcc3385acc5f14a4c26b93301
+ directory = icculus-physfs-eb3383b
+ method = cmake
+ diff_files =
++    physfs-switch.patch,
+     end-of-diff-files.patch
