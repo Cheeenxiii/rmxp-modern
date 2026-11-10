@@ -77,10 +77,13 @@
 - The `Array#sample(n)` shim matches CRuby for n <= 10. Above that it falls
   back to a partial Fisher-Yates that may differ from CRuby. No known use in
   the games we target.
-- `MGC_Hmode7` (Insurgence) has no non-Windows implementation. 7 of its 832
-  maps use it, including the intro fly-over (214 transfers to 689) and the world
-  map (676); those maps render as a flat tilemap instead of the heightmap view.
-  No pure-Ruby H-Mode7 exists; a partial Ruby mode-7 is a 1-2 week project.
+- `MGC_Hmode7` (Insurgence) has no non-Windows implementation and no fallback:
+  its 7 maps (intro 689, world map 676, ...) draw their tilemap only through the
+  DLL, so they show only a panorama and are not playable. The intro and the
+  map transfers still run, and Soar's logic works, but nothing is visible.
+  Minimal fix: force `$game_system.hm7 = false` after `Game_Map#setup` (or build
+  the normal `Tilemap` when the DLL is absent) in the migration/compat shim.
+  A real mode-7 is 1-2 weeks; nothing is implemented.
 - Screen readers (Tolk/NVDA) are not implemented; see docs/compatibility.md.
 - Uranium draws at 512x384 in a 640x480 window (black bands); the reference
   port upscales the picture. A compat preload could set the surface to the
