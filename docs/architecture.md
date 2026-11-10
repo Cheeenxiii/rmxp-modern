@@ -10,7 +10,7 @@
 | `lib/rmxp/scripts.rb` | `Scripts.rxdata` to one `.rb` file per section, with order and ids |
 | `lib/rmxp/rgss.rb` | RGSS types with their own Marshal format (Table, Color, Tone, Rect, Font) |
 | `lib/rmxp/check.rb` | parses scripts and event script fragments with Prism |
-| `lib/rmxp/audit.rb` | counts dynamic Ruby constructs |
+| `lib/rmxp/audit.rb` | counts dynamic Ruby constructs and calls to compatibility shims |
 | `lib/rmxp/migrate.rb` | ports pre-v19 games to Ruby 3 |
 | `lib/rmxp/mt19937.rb` | CRuby's random number generator, in Ruby |
 | `lib/rmxp/preload/compat/` | shims that `migrate` installs into games |

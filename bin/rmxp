@@ -22,6 +22,36 @@ def print_audit(result)
   puts format("  %-34s %12d %12d %12d", "event fragments", result.event_fragments, 0, 0)
 end
 
+# Reports the compatibility-shim functions the game actually calls, with the
+# category of each shim (see Rmxp::Audit::SHIM_APIS) and the Win32API functions
+# by DLL. Calls that aren't statically detectable are listed with no count.
+def print_shims(result)
+  called = Rmxp::Audit::SHIM_APIS.select { |name, _category, _pattern| result.shims[name].positive? }
+  puts "shim functions called: #{called.length}/#{Rmxp::Audit::SHIM_APIS.length}"
+  called.each do |name, category, _pattern|
+    puts format("  %-8s %6d  %s", category, result.shims[name], name)
+  end
+  undetectable = Rmxp::Audit::SHIM_APIS.select { |_name, _category, pattern| pattern.nil? }
+  unless undetectable.empty?
+    puts "  (not statically detectable: #{undetectable.map(&:first).join(', ')})"
+  end
+  if result.win32_api.empty?
+    puts "win32api: none"
+    return
+  end
+  puts "win32api calls:"
+  result.win32_api.sort.each do |pair, count|
+    dll, function = pair.split("!", 2)
+    if function.nil?
+      puts format("  %6d  %s", count, pair)
+      next
+    end
+    implemented = Rmxp::Audit::WIN32_IMPLEMENTED.fetch(dll, []).include?(function)
+    status = implemented ? "implemented" : "unsupported (returns 0)"
+    puts format("  %6d  %-44s %s", count, "#{dll}!#{function}", status)
+  end
+end
+
 command = ARGV.shift
 
 case command
@@ -59,7 +89,8 @@ when "migrate"
   puts "migrate: #{result.scripts} scripts, #{result.regexes} regexes converted, " \
        "#{result.dynamic_flags} /n flags removed, #{result.when_colons} when clauses converted, " \
        "#{result.break_fixes} break/next fixed, #{result.read_bytes} read(1)[0] fixed, " \
-       "#{result.parse_errors} invalid script(s)"
+       "#{result.proc_returns} proc returns converted, #{result.legacy_aliases} legacy string aliases removed, " \
+       "#{result.skipped_scripts} Windows-only scripts skipped, #{result.parse_errors} invalid script(s)"
   puts "output: #{File.expand_path(out_dir)}"
 when "audit"
   if ARGV.first == "--scripts"
@@ -68,6 +99,7 @@ when "audit"
     abort "usage: rmxp audit --scripts DIR" unless dir
     result = Rmxp::Audit.new(nil, nil).run_scripts_dir(dir)
     print_audit(result)
+    print_shims(result)
     exit 0
   end
   game_dir = ARGV.shift
@@ -75,6 +107,7 @@ when "audit"
   work_dir = ARGV.shift || File.join("tmp", "audit", slug(game_dir))
   result = Rmxp::Audit.new(game_dir, work_dir).run
   print_audit(result)
+  print_shims(result)
 when "help", nil
   puts <<~TEXT
     rmxp - convert RPG Maker XP games to text projects and back
