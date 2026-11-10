@@ -111,3 +111,23 @@ vendor/spinel/bin/spinel tmp/battle/spinel_battle.rb -o tmp/battle/spinel_battle
 - No game-specific fixes in the code: either the change is generic, or it goes
   to `TODO.md`.
 - Round-trip fidelity matters more than test coverage.
+
+## Virtual gamepad
+
+`script/virtual-pad` creates an Xbox-like pad through Linux `/dev/uinput`, so
+SDL (mkxp-z, the emulators) sees a real controller instead of simulated keys.
+It needs write access to `/dev/uinput` (root or a udev rule; in a container,
+`--privileged` with `/dev` available). It reads one command per line on stdin:
+
+```bash
+mkfifo /tmp/pad
+script/virtual-pad </tmp/pad &
+printf 'a down\nsleep 80\na up\n' > /tmp/pad
+printf 'hat down\nsleep 80\nhat center\n' > /tmp/pad
+```
+
+SDL only enumerates uinput devices when udev tags them as joysticks
+(`ID_INPUT_JOYSTICK`); on a normal desktop that happens automatically. Where
+that is not possible (sandboxed or container test runs), build a test-only
+mkxp-z with an SDL virtual controller (`SDL_JoystickAttachVirtual`) fed from a
+FIFO instead.
