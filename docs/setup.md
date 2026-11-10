@@ -66,15 +66,43 @@ ninja -C build
 
 This produces `vendor/mkxp-z/build/switch/nro/mkxp-z.nro`.
 
-The `.nro` runs the game whose folder is given as its first argument, as a
-forwarder does, or else the game in the folder the `.nro` is in. To play a
-game from the Homebrew Menu:
+The `.nro` looks for the game folder in this order:
+
+1. a game inside the `.nro`'s RomFS, as built by `script/switch-build` below;
+2. the folder given as its first argument (a forwarder can pass one);
+3. the folder the `.nro` is in (the Homebrew Menu starts homebrew there);
+4. the fixed folder `sdmc:/switch/mkxp-z/game/`.
+
+To play a game from the Homebrew Menu:
 
 1. Migrate it if it predates Essentials v19 (`bin/rmxp migrate`).
 2. Copy the game folder to the SD card, for example `/switch/<name>/`, and
-   `mkxp-z.nro` into that folder.
+   `mkxp-z.nro` into that folder, or build the game into the `.nro` (below).
 3. Start the Homebrew Menu by holding R while launching a title, not from the
    Album, which gives homebrew too little memory.
+
+### Standalone `.nro` (game inside the RomFS)
+
+`script/switch-build` puts a game inside the `.nro`'s RomFS, so one file is
+enough to play. The game's `Title` from `Game.ini` becomes the application
+name, and the game's title picture becomes the icon:
+
+```bash
+bin/rmxp migrate path/to/game out/game     # pre-v19 games only
+script/switch-build out/game               # -> tmp/switch-build/<name>.nro
+script/switch-build out/game Uranium.nro --name "Pokémon Uranium" --icon cover.png
+```
+
+The RomFS is read-only, so the first launch copies the game once to
+`sdmc:/switch/mkxp-z/<name>/` and runs it from there; a rebuild of the `.nro`
+reinstalls the game when its `Game.ini` or `Scripts.rxdata` changes. The
+engines' log is written in that installed folder (or `sdmc:/switch/mkxp-z/`
+when the game runs from the RomFS). A large game makes a large `.nro` (the
+whole game is embedded), which may exceed what the Homebrew Menu can load; a
+small kit is the safe case.
+
+The script needs `script/setup` to have run once, and either devkitPro in the
+environment or Docker with the `devkitpro/devkita64:20251117` image.
 
 Controls go through mkxp-z's usual bindings, following the Nintendo labels:
 A confirms and B cancels. ZL, ZR and minus are bound to F5, F6 and F7, which
@@ -82,9 +110,8 @@ some games read as `Input::E`, `F` and `D`. MIDI music is skipped, and HTTP
 requests return nothing.
 
 Each launch writes the engine's and the game's output to `mkxp-z.log` in the
-folder of the `.nro` (or in the game folder if the launcher gives no path for
-the `.nro`), replacing the previous log. When a game crashes, look there
-first.
+game folder (or on the SD card when the game runs from a read-only RomFS),
+replacing the previous log. When a game crashes, look there first.
 
 The Switch support is based on
 [GQster's mkxp-z Switch port](https://github.com/GQster/mkxp-zSwitchPort).

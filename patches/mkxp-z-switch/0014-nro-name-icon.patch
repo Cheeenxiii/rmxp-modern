@@ -1,0 +1,41 @@
+diff --git a/switch/nro/meson.build b/switch/nro/meson.build
+index c5f783ac..d050ceae 100644
+--- a/switch/nro/meson.build
++++ b/switch/nro/meson.build
+@@ -1,11 +1,27 @@
+ # Package the executable as a homebrew .nro, with a RomFS made of
+ # switch/romfs-root/
++fs = import('fs')
++
++# A standalone game build can set the application name and icon by dropping
++# name.txt and icon.jpg next to the RomFS content (script/switch-build does).
++nro_name = meson.project_name()
++nro_name_file = meson.project_source_root() / 'switch' / 'romfs-root' / 'name.txt'
++if fs.exists(nro_name_file)
++    nro_name = fs.read(nro_name_file).strip()
++endif
++
++nro_icon_file = meson.project_source_root() / 'switch' / 'romfs-root' / 'icon.jpg'
++nro_icon_args = []
++if fs.exists(nro_icon_file)
++    nro_icon_args = ['--icon=' + nro_icon_file]
++endif
++
+ nacp = custom_target(
+     'nacp',
+     output: meson.project_name() + '.nacp',
+     command: [
+         find_program('nacptool'), '--create',
+-        meson.project_name(), meson.project_name(), meson.project_version(),
++        nro_name, 'mkxp-z', meson.project_version(),
+         '@OUTPUT@',
+     ],
+ )
+@@ -16,6 +32,7 @@ custom_target(
+     output: meson.project_name() + '.nro',
+     command: [
+         find_program('elf2nro'), '@INPUT0@', '@OUTPUT@', '--nacp=@INPUT1@',
++    ] + nro_icon_args + [
+         '--romfsdir=' + (meson.project_source_root() / 'switch' / 'romfs-root'),
+     ],
+     build_by_default: true,
