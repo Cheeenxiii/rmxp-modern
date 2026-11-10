@@ -8,7 +8,7 @@ v19 — after `bin/rmxp migrate`.
 | Game | Status |
 |---|---|
 | Pokémon Uranium 1.4.1 (Essentials v16.2) | Playable: title, menus, first map, battles, save and reload. |
-| Pokémon Insurgence 1.2.7.1 (Essentials v16.2) | Runs: title, menus, regular maps, battles, save and reload. The H-Mode7 intro and world map are not playable. |
+| Pokémon Insurgence 1.2.7.1 (Essentials v16.2) | Playable: title, menus, intro, maps, battles, save and reload; H-Mode7 maps render as normal maps. |
 | Pokémon Reborn 19.5 | Boots to its title screen and main menu. |
 | Essentials kits v19.1, v20.1, v21.1 | Boot and play; the round trip is byte-identical on v21.1. |
 | Pokémon SDK games | Not supported yet. |
@@ -27,8 +27,8 @@ aliases, Marshal and the engine API calls our shims cover).
   512x384 in a 640x480 window, so there are black bands on the right and
   bottom, where the reference port scales the picture up.
 - Insurgence's H-Mode7 maps (7 maps, including the intro and the world map)
-  render only a panorama or black: their tilemap is drawn through a Windows
-  DLL we do not implement, so the player and terrain are invisible.
+  lose their heightmap effect and are drawn as normal maps instead: their
+  Windows DLL is absent, so only the normal renderer is used.
 - Online features (updates, GTS, trades, Discord Rich Presence) are off: the
   Windows network APIs return nothing.
 - Screen readers (Tolk/NVDA) are not implemented.
