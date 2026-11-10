@@ -1,0 +1,199 @@
+# sdmc:/ and romfs:/ paths, ghc::filesystem on newlib, faster path cache and reads.
+# From GQster's mkxp-z Switch port.
+
+diff --git a/src/filesystem/filesystem.cpp b/src/filesystem/filesystem.cpp
+index 67c9be0c..803cae46 100644
+--- a/src/filesystem/filesystem.cpp
++++ b/src/filesystem/filesystem.cpp
+@@ -48,6 +48,11 @@
+ #include <direct.h>
+ #endif
+ 
++#ifdef __SWITCH__
++#include <dirent.h>
++#include <unordered_set>
++#endif
++
+ struct SDLRWIoContext {
+   SDL_RWops *ops;
+   std::string filename;
+@@ -246,6 +251,12 @@ static const char *findExt(const char *filename) {
+ }
+ 
+ static void initReadOps(PHYSFS_File *handle, SDL_RWops &ops, bool freeOnClose) {
++#ifdef __SWITCH__
++  /* Unbuffered, every read is a filesystem service call. SDL_sound's Ogg
++   * decoder (stb_vorbis) reads one byte at a time, which made loading even
++   * a short sound effect block the game for one to two seconds. */
++  PHYSFS_setBuffer(handle, 64 * 1024);
++#endif
+   ops.size = SDL_RWopsSize;
+   ops.seek = SDL_RWopsSeek;
+   ops.read = SDL_RWopsRead;
+@@ -356,6 +367,33 @@ struct CacheEnumData {
+   FileSystemPrivate *p;
+   std::stack<std::vector<std::string> *> fileLists;
+ 
++#ifdef __SWITCH__
++  /* Entry types of the game folder, from one directory walk. On the Switch
++   * a PHYSFS_stat() costs several filesystem service calls (milliseconds),
++   * which for a game with ~20000 files kept the path cache busy for about a
++   * minute; readdir() already reports each entry's type. */
++  std::unordered_set<std::string> realDirs;
++  std::unordered_set<std::string> realFiles;
++
++  void scanRealDir(const std::string &dir) {
++    DIR *d = opendir(dir.empty() ? "." : dir.c_str());
++    if (!d)
++      return;
++    while (struct dirent *e = readdir(d)) {
++      if (!strcmp(e->d_name, ".") || !strcmp(e->d_name, ".."))
++        continue;
++      std::string path = dir.empty() ? e->d_name : dir + "/" + e->d_name;
++      if (e->d_type == DT_DIR) {
++        realDirs.insert(path);
++        scanRealDir(path);
++      } else {
++        realFiles.insert(path);
++      }
++    }
++    closedir(d);
++  }
++#endif
++
+ #ifdef __APPLE__
+   iconv_t nfd2nfc;
+   char buf[512];
+@@ -414,10 +452,21 @@ static PHYSFS_EnumerateCallbackResult cacheEnumCB(void *d, const char *origdir,
+   std::string lowerCase = mixedCase;
+   strTolower(lowerCase);
+ 
+-  PHYSFS_Stat stat;
+-  PHYSFS_stat(fullPath, &stat);
++  bool isDir;
++#ifdef __SWITCH__
++  if (data.realDirs.count(fullPath))
++    isDir = true;
++  else if (data.realFiles.count(fullPath))
++    isDir = false;
++  else
++#endif
++  {
++    PHYSFS_Stat stat;
++    PHYSFS_stat(fullPath, &stat);
++    isDir = stat.filetype == PHYSFS_FILETYPE_DIRECTORY;
++  }
+ 
+-  if (stat.filetype == PHYSFS_FILETYPE_DIRECTORY) {
++  if (isDir) {
+     /* Create a new list for this directory */
+     std::vector<std::string> &list = data.p->fileLists[lowerCase];
+ 
+@@ -445,6 +494,10 @@ void FileSystem::createPathCache() {
+   Debug() << "Loading path cache...";
+ 
+   CacheEnumData data(p);
++#ifdef __SWITCH__
++  /* The game folder is the working directory, mounted at the root */
++  data.scanRealDir("");
++#endif
+   data.fileLists.push(&p->fileLists[""]);
+   PHYSFS_enumerate("", cacheEnumCB, &data);
+ 
+diff --git a/src/filesystem/filesystemImpl.cpp b/src/filesystem/filesystemImpl.cpp
+index 1d79dee9..2258eeda 100644
+--- a/src/filesystem/filesystemImpl.cpp
++++ b/src/filesystem/filesystemImpl.cpp
+@@ -5,6 +5,7 @@
+ //  Created by ゾロアーク on 11/21/20.
+ //
+ 
++#include "switch_filesystem_shim.h"
+ #include <SDL_filesystem.h>
+ 
+ #include "filesystemImpl.h"
+@@ -20,6 +21,7 @@ namespace fs = ghc::filesystem;
+ #endif
+ 
+ #include <fstream>
++#include <cstring>
+ 
+ // https://stackoverflow.com/questions/12774207/fastest-way-to-check-if-a-file-exist-using-standard-c-c11-c
+ bool filesystemImpl::fileExists(const char *path) {
+@@ -70,8 +72,16 @@ std::string filesystemImpl::getCurrentDirectory() {
+ 
+ std::string filesystemImpl::normalizePath(const char *path, bool preferred, bool absolute) {
+     fs::path stdPath(path);
+-    
+-    if (!stdPath.is_absolute() && absolute)
++    bool isAbsolute = stdPath.is_absolute();
++#ifdef __SWITCH__
++    // libnx paths carry a device prefix ("sdmc:/", "romfs:/") that
++    // ghc::filesystem does not recognize as a root.
++    const char *colon = strchr(path, ':');
++    if (colon && colon != path && colon[1] == '/' && !memchr(path, '/', colon - path))
++        isAbsolute = true;
++#endif
++
++    if (!isAbsolute && absolute)
+         stdPath = fs::current_path() / stdPath;
+ 
+     stdPath = stdPath.lexically_normal();
+diff --git a/src/filesystem/switch_filesystem_shim.h b/src/filesystem/switch_filesystem_shim.h
+new file mode 100644
+index 00000000..8b4960e0
+--- /dev/null
++++ b/src/filesystem/switch_filesystem_shim.h
+@@ -0,0 +1,52 @@
++#ifndef SWITCH_FILESYSTEM_SHIM_H
++#define SWITCH_FILESYSTEM_SHIM_H
++/* From GQster's mkxp-z Switch port. */
++#ifdef __SWITCH__
++#include <sys/stat.h>
++#include <unistd.h>
++#include <errno.h>
++/* ghc::filesystem has no Switch target; its Linux code works on newlib */
++#define GHC_OS_LINUX
++#define GHC_OS_DETECTED
++
++#ifndef AT_FDCWD
++#define AT_FDCWD (-100)
++#endif
++#ifndef AT_SYMLINK_NOFOLLOW
++#define AT_SYMLINK_NOFOLLOW 0x100
++#endif
++
++/* Stub unsupported POSIX functions. newlib declares some of these in
++ * gnu++ mode, so the stubs get their own names and these macros send calls
++ * to them. */
++#define symlink mkxpz_switch_symlink
++#define readlink mkxpz_switch_readlink
++#define utimensat mkxpz_switch_utimensat
++#define truncate mkxpz_switch_truncate
++
++static inline int symlink(const char *target, const char *linkpath) {
++    (void)target; (void)linkpath;
++    errno = ENOSYS;
++    return -1;
++}
++
++static inline ssize_t readlink(const char *pathname, char *buf, size_t bufsiz) {
++    (void)pathname; (void)buf; (void)bufsiz;
++    errno = EINVAL;
++    return -1;
++}
++
++static inline int utimensat(int dirfd, const char *pathname, 
++                            const struct timespec times[2], int flags) {
++    (void)dirfd; (void)pathname; (void)times; (void)flags;
++    return 0;
++}
++
++static inline int truncate(const char *path, off_t length) {
++    (void)path; (void)length;
++    errno = ENOSYS;
++    return -1;
++}
++
++#endif /* __SWITCH__ */
++#endif /* SWITCH_FILESYSTEM_SHIM_H */

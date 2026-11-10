@@ -1,0 +1,637 @@
+# Builds Ruby 3.1 for libnx: thread stacks, no timer pipe, sockets, POSIX stubs.
+# From GQster's mkxp-z Switch port.
+
+diff --git a/src/meson.build b/src/meson.build
+index 7dce395a..1b40a0b2 100755
+--- a/src/meson.build
++++ b/src/meson.build
+@@ -1136,7 +1136,16 @@ if host_system != 'switch'
+ endif
+ 
+ ruby = dependency('ruby-' + get_option('mri_version'), allow_fallback: false, required: get_option('ruby_system').disable_auto_if(default_system_disabled).enable_auto_if(default_system_enabled))
+-if not ruby.found()
++if not ruby.found() and host_system == 'switch'
++    # Switch: no fiddle, so no libffi, and psych uses its bundled libyaml
++    ruby_options = meson_base_options + {
++        'cflags': run_command(quotetool, zlib_includes, check: true).stdout().strip(),
++        'cppflags': run_command(quotetool, zlib_includes, check: true).stdout().strip(),
++        'ldflags': run_command(quotetool, zlib_libs, check: true).stdout().strip(),
++    }
++    ruby = subproject('ruby-' + get_option('mri_version'), default_options: ruby_options).get_variable('ruby')
++    ruby_build_dir = subproject('ruby-' + get_option('mri_version'), default_options: ruby_options).get_variable('ruby_build_dir')
++elif not ruby.found()
+     libffi = dependency('libffi', allow_fallback: false, method: 'pkg-config', required: get_option('libffi_system').disable_auto_if(default_system_disabled).enable_auto_if(default_system_enabled))
+     if not libffi.found()
+         libffi_options = meson_base_options
+diff --git a/subprojects/packagefiles/ruby-3.1-switch.patch b/subprojects/packagefiles/ruby-3.1-switch.patch
+new file mode 100644
+index 00000000..bc25f9a2
+--- /dev/null
++++ b/subprojects/packagefiles/ruby-3.1-switch.patch
+@@ -0,0 +1,352 @@
++# Nintendo Switch (libnx) support. Every change is behind __SWITCH__ or
++# RB_THREAD_LOCAL_SPECIFIER_IS_UNSUPPORTED, so this is a no-op elsewhere.
++# The out-of-line POSIX stubs these rely on are in ruby-3.1/switch-shim.c.
++# From GQster's mkxp-z Switch port.
++
++--- a/addr2line.c
+++++ b/addr2line.c
++@@ -1,3 +1,6 @@
+++#ifdef __SWITCH__
+++#include "switch_shim.h"
+++#endif
++ /**********************************************************************
++ 
++   addr2line.c -
++@@ -35,7 +38,9 @@
++ #include <stdint.h>
++ #include <stdlib.h>
++ #include <string.h>
+++#ifndef __SWITCH__
++ #include <sys/mman.h>
+++#endif
++ #include <sys/types.h>
++ #include <sys/stat.h>
++ #include <unistd.h>
++--- a/cont.c
+++++ b/cont.c
++@@ -1,3 +1,6 @@
+++#ifdef __SWITCH__
+++#include "switch_shim.h"
+++#endif
++ /**********************************************************************
++ 
++   cont.c -
++@@ -13,8 +16,10 @@
++ 
++ #ifndef _WIN32
++ #include <unistd.h>
+++#ifndef __SWITCH__
++ #include <sys/mman.h>
++ #endif
+++#endif
++ 
++ // On Solaris, madvise() is NOT declared for SUS (XPG4v2) or later,
++ // but MADV_* macros are defined when __EXTENSIONS__ is defined.
++--- a/ext/socket/init.c
+++++ b/ext/socket/init.c
++@@ -114,6 +114,11 @@
++     struct recvfrom_arg *arg = data;
++     socklen_t len0 = arg->alen;
++     ssize_t ret;
+++#ifdef __SWITCH__
+++    if (arg->alen == 0) /* no address wanted */
+++        ret = recv(arg->fd, RSTRING_PTR(arg->str), arg->length, arg->flags);
+++    else
+++#endif
++     ret = recvfrom(arg->fd, RSTRING_PTR(arg->str), arg->length,
++                    arg->flags, &arg->buf.addr, &arg->alen);
++     if (ret != -1 && len0 < arg->alen)
++@@ -175,6 +180,9 @@
++ 
++     arg.fd = fptr->fd;
++     arg.alen = (socklen_t)sizeof(arg.buf);
+++#ifdef __SWITCH__
+++    if (from == RECV_RECV) arg.alen = 0;
+++#endif
++     arg.str = str;
++     arg.length = buflen;
++ 
++@@ -255,6 +263,11 @@
++ 	rb_io_set_nonblock(fptr);
++ 
++     len0 = alen;
+++#ifdef __SWITCH__
+++    if (from == RECV_RECV) /* no address wanted */
+++        slen = recv(fd, RSTRING_PTR(str), buflen, flags);
+++    else
+++#endif
++     slen = recvfrom(fd, RSTRING_PTR(str), buflen, flags, &buf.addr, &alen);
++     if (slen != -1 && len0 < alen)
++         alen = len0;
++--- a/ext/socket/option.c
+++++ b/ext/socket/option.c
++@@ -1362,10 +1362,10 @@
++ #            if defined(IPV6_MULTICAST_LOOP) /* POSIX */
++               case IPV6_MULTICAST_LOOP: inspected = inspect_uint(level, optname, data, ret); break;
++ #            endif
++-#            if defined(IPV6_JOIN_GROUP) /* POSIX */
+++#            if defined(IPV6_JOIN_GROUP) && defined(HAVE_TYPE_STRUCT_IPV6_MREQ) /* POSIX */
++               case IPV6_JOIN_GROUP: inspected = inspect_ipv6_mreq(level, optname, data, ret); break;
++ #            endif
++-#            if defined(IPV6_LEAVE_GROUP) /* POSIX */
+++#            if defined(IPV6_LEAVE_GROUP) && defined(HAVE_TYPE_STRUCT_IPV6_MREQ) /* POSIX */
++               case IPV6_LEAVE_GROUP: inspected = inspect_ipv6_mreq(level, optname, data, ret); break;
++ #            endif
++ #            if defined(IPV6_UNICAST_HOPS) /* POSIX */
++--- a/ext/socket/sockport.h
+++++ b/ext/socket/sockport.h
++@@ -109,7 +109,7 @@
++ # define PF_INET AF_INET
++ #endif
++ 
++-#if defined(HOST_NOT_FOUND) && !defined(h_errno) && !defined(__CYGWIN__)
+++#if defined(HOST_NOT_FOUND) && !defined(h_errno) && !defined(__CYGWIN__) && !defined(__SWITCH__)
++ extern int h_errno;
++ #endif
++ 
++--- a/file.c
+++++ b/file.c
++@@ -1,3 +1,6 @@
+++#ifdef __SWITCH__ /* newlib's dev_t is a short */
+++#define SHORT2NUM(x) INT2NUM((int)(x))
+++#endif
++ /**********************************************************************
++ 
++   file.c -
++--- a/gc.c
+++++ b/gc.c
++@@ -1,3 +1,6 @@
+++#ifdef __SWITCH__
+++#include "switch_shim.h"
+++#endif
++ /**********************************************************************
++ 
++   gc.c -
++@@ -25,8 +28,10 @@
++ 
++ #ifndef _WIN32
++ #include <unistd.h>
+++#ifndef __SWITCH__
++ #include <sys/mman.h>
++ #endif
+++#endif
++ 
++ #include <setjmp.h>
++ #include <stdarg.h>
++@@ -5043,6 +5048,9 @@
++      * to si_addr from sigaction */
++     old_handler = SetUnhandledExceptionFilter(read_barrier_signal);
++ }
+++#elif defined(__SWITCH__)
+++static void uninstall_handlers(void) { /* no signals on libnx */ }
+++static void install_handlers(void) { /* no signals on libnx */ }
++ #else
++ static struct sigaction old_sigbus_handler;
++ static struct sigaction old_sigsegv_handler;
++--- a/io_buffer.c
+++++ b/io_buffer.c
++@@ -1,3 +1,6 @@
+++#ifdef __SWITCH__
+++#include "switch_shim.h"
+++#endif
++ /**********************************************************************
++ 
++   io_buffer.c
++@@ -27,8 +30,10 @@
++ #ifdef _WIN32
++ #else
++ #include <unistd.h>
+++#ifndef __SWITCH__
++ #include <sys/mman.h>
++ #endif
+++#endif
++ 
++ struct rb_io_buffer {
++     void *base;
++--- a/io.c
+++++ b/io.c
++@@ -1,3 +1,6 @@
+++#ifdef __SWITCH__ /* newlib has O_BINARY but no setmode() */
+++#define setmode(fd, mode) ((void)0)
+++#endif
++ /**********************************************************************
++ 
++   io.c -
++--- a/switch_shim.h
+++++ b/switch_shim.h
++@@ -0,0 +1,86 @@
+++#ifndef RUBY_SWITCH_SHIM_H
+++#define RUBY_SWITCH_SHIM_H
+++/* Nintendo Switch (libnx): stand-ins for POSIX APIs newlib lacks. The
+++ * out-of-line POSIX stubs are in mkxp-z's subprojects/packagefiles/ruby-3.1/
+++ * switch-shim.c. */
+++#ifdef __SWITCH__
+++#include <stdlib.h>
+++#include <stddef.h>
+++#include <string.h>
+++
+++void *memmem(const void *haystack, size_t haystacklen, const void *needle, size_t needlelen);
+++
+++#ifndef MAP_FAILED
+++#define MAP_FAILED ((void*)-1)
+++#endif
+++#ifndef MAP_ANON
+++#define MAP_ANON 0
+++#endif
+++#ifndef MAP_ANONYMOUS
+++#define MAP_ANONYMOUS MAP_ANON
+++#endif
+++#ifndef MAP_PRIVATE
+++#define MAP_PRIVATE 0
+++#endif
+++#ifndef MAP_SHARED
+++#define MAP_SHARED 0
+++#endif
+++#ifndef PROT_NONE
+++#define PROT_NONE 0
+++#endif
+++#ifndef PROT_READ
+++#define PROT_READ 1
+++#endif
+++#ifndef PROT_WRITE
+++#define PROT_WRITE 2
+++#endif
+++#ifndef PROT_EXEC
+++#define PROT_EXEC 4
+++#endif
+++
+++static inline void *mmap(void *addr, size_t length, int prot, int flags, int fd, long offset) {
+++    (void)addr; (void)prot; (void)flags; (void)fd; (void)offset;
+++    void *mem = calloc(1, length);
+++    return mem ? mem : MAP_FAILED;
+++}
+++
+++static inline int munmap(void *addr, size_t length) {
+++    (void)length;
+++    if (addr && addr != MAP_FAILED) free(addr);
+++    return 0;
+++}
+++
+++static inline int mprotect(void *addr, size_t len, int prot) {
+++    (void)addr; (void)len; (void)prot;
+++    return 0; /* no memory protection to change */
+++}
+++
+++#ifndef RTLD_NOW
+++#define RTLD_NOW 0
+++#endif
+++#ifndef RTLD_LOCAL
+++#define RTLD_LOCAL 0
+++#endif
+++#ifndef RTLD_DEFAULT
+++#define RTLD_DEFAULT ((void*)0)
+++#endif
+++
+++typedef struct {
+++    const char *dli_fname;
+++    void *dli_fbase;
+++    const char *dli_sname;
+++    void *dli_saddr;
+++} Dl_info;
+++
+++static inline void *dlopen(const char *filename, int flag) { (void)filename; (void)flag; return NULL; }
+++static inline int dlclose(void *handle) { (void)handle; return 0; }
+++static inline void *dlsym(void *handle, const char *symbol) { (void)handle; (void)symbol; return NULL; }
+++static inline int dladdr(const void *addr, Dl_info *info) {
+++    (void)addr;
+++    if (info) memset(info, 0, sizeof(*info));
+++    return 0;
+++}
+++static inline char *dlerror(void) { return NULL; }
+++
+++#endif /* __SWITCH__ */
+++#endif /* RUBY_SWITCH_SHIM_H */
++--- a/thread.c
+++++ b/thread.c
++@@ -1,3 +1,6 @@
+++#ifdef __SWITCH__
+++#include "switch_shim.h"
+++#endif
++ /**********************************************************************
++ 
++   thread.c -
++--- a/thread_pthread.c
+++++ b/thread_pthread.c
++@@ -1,3 +1,9 @@
+++#ifdef __SWITCH__
+++#include "switch_shim.h"
+++#endif
+++#ifdef __SWITCH__
+++#define posix_signal(sig, func) ((void)0)
+++#endif
++ /* -*-c-*- */
++ /**********************************************************************
++ 
++@@ -715,7 +721,10 @@
++ static rb_thread_t *register_cached_thread_and_wait(void *);
++ #endif
++ 
++-#if defined HAVE_PTHREAD_GETATTR_NP || defined HAVE_PTHREAD_ATTR_GET_NP
+++#if defined __SWITCH__
+++#define STACKADDR_AVAILABLE 1
+++int rb_switch_get_stack(void **addr, size_t *size);
+++#elif defined HAVE_PTHREAD_GETATTR_NP || defined HAVE_PTHREAD_ATTR_GET_NP
++ #define STACKADDR_AVAILABLE 1
++ #elif defined HAVE_PTHREAD_GET_STACKADDR_NP && defined HAVE_PTHREAD_GET_STACKSIZE_NP
++ #define STACKADDR_AVAILABLE 1
++@@ -751,7 +760,10 @@
++ {STACK_GROW_DIR_DETECTION;
++ #define CHECK_ERR(expr)				\
++     {int err = (expr); if (err) return err;}
++-#ifdef HAVE_PTHREAD_GETATTR_NP /* Linux */
+++#if defined __SWITCH__ /* libnx */
+++    if (rb_switch_get_stack(addr, size) != 0) return ENOSYS;
+++    STACK_DIR_UPPER((void)0, (void)(*addr = (char *)*addr + *size));
+++#elif defined HAVE_PTHREAD_GETATTR_NP /* Linux */
++     pthread_attr_t attr;
++     size_t guard = 0;
++ 
++@@ -1184,7 +1196,7 @@
++ 
++ 	CHECK_ERR(pthread_attr_init(&attr));
++ 
++-# ifdef PTHREAD_STACK_MIN
+++# if defined PTHREAD_STACK_MIN || defined __SWITCH__
++ 	thread_debug("create - stack size: %lu\n", (unsigned long)stack_size);
++ 	CHECK_ERR(pthread_attr_setstacksize(&attr, stack_size));
++ # endif
++@@ -2236,7 +2248,11 @@
++         rb_sigwait_fd_put(th, sigwait_fd);
++         rb_sigwait_fd_migrate(th->vm);
++     }
+++#ifdef __SWITCH__ /* no timer self-pipe on libnx */
+++    else if (th == th->vm->ractor.main_thread && signal_self_pipe.ub_main[0] >= 0) {
+++#else
++     else if (th == th->vm->ractor.main_thread) { /* always able to handle signals */
+++#endif
++         native_ppoll_sleep(th, rel);
++     }
++     else {
++--- a/thread_pthread.h
+++++ b/thread_pthread.h
++@@ -70,9 +70,9 @@
++ } rb_global_vm_lock_t;
++ 
++ 
++-#if __STDC_VERSION__ >= 201112
+++#if !defined(RB_THREAD_LOCAL_SPECIFIER_IS_UNSUPPORTED) && __STDC_VERSION__ >= 201112
++   #define RB_THREAD_LOCAL_SPECIFIER _Thread_local
++-#elif defined(__GNUC__)
+++#elif !defined(RB_THREAD_LOCAL_SPECIFIER_IS_UNSUPPORTED) && defined(__GNUC__)
++   /* note that ICC (linux) and Clang are covered by __GNUC__ */
++   #define RB_THREAD_LOCAL_SPECIFIER __thread
++ #else
++--- a/vm.c
+++++ b/vm.c
++@@ -1,3 +1,6 @@
+++#ifdef __SWITCH__
+++#include "switch_shim.h"
+++#endif
++ /**********************************************************************
++ 
++   Vm.c -
+diff --git a/subprojects/packagefiles/ruby-3.1/meson.build b/subprojects/packagefiles/ruby-3.1/meson.build
+index 05979e8a..9fed19cc 100644
+--- a/subprojects/packagefiles/ruby-3.1/meson.build
++++ b/subprojects/packagefiles/ruby-3.1/meson.build
+@@ -30,12 +30,76 @@ endif
+ 
+ baseruby = run_command(subproject('common').get_variable('quotetool'), (meson.version().version_compare('>=1.10.0') ? find_program('ruby').cmd_array() : find_program('ruby')), check: true).stdout().strip()
+ 
++is_switch = host_machine.system() == 'switch'
++
+ ruby_deps = [
+-    dependency('libffi', required: true),
+-    dependency('yaml-0.1', required: true),
++    is_switch ? [] : dependency('libffi', required: true),
++    is_switch ? [] : dependency('yaml-0.1', required: true),
+     dependency('zlib', required: true),
+ ]
+ 
++# Nintendo Switch (libnx): the POSIX stubs Ruby needs. Configure links them
++# into its tests and Ruby's own programs, so they're compiled now, at setup
++# time (edits to switch-shim.c need a fresh setup).
++switch_configure_options = []
++switch_env = {}
++switch_link_args = []
++if is_switch
++    switch_shim = meson.current_build_dir() / 'libruby-switch-shim.a'
++    run_command(meson.get_compiler('c').cmd_array(), cflags, '-c', files('switch-shim.c'), '-o', switch_shim + '.o', check: true)
++    run_command(subproject('common').get_variable('ar'), 'rcs', switch_shim, switch_shim + '.o', check: true)
++    switch_libs = [switch_shim, '-lnx']
++    switch_configure_options = [
++        'LIBS=' + ' '.join(switch_libs),
++        '--disable-jit-support',
++        '--with-coroutine=arm64',
++        '--disable-close-fds-by-recvmsg-with-peek',
++    ]
++    # Configure's link tests can't tell a working function from a newlib
++    # stub, and some of these are only in switch-shim.c.
++    switch_env = {
++        'ac_cv_func_fork': 'no',
++        'ac_cv_func_mmap': 'no',
++        'ac_cv_func_mprotect': 'no',
++        'ac_cv_func_sigaction': 'no',
++        'ac_cv_func_sigaltstack': 'no',
++        'ac_cv_func_sigprocmask': 'no',
++        'ac_cv_func_kill': 'no',
++        'ac_cv_func_dup': 'yes',
++        'ac_cv_func_dup2': 'yes',
++        'ac_cv_func_getuid': 'yes',
++        'ac_cv_func_geteuid': 'yes',
++        'ac_cv_func_getgid': 'yes',
++        'ac_cv_func_getegid': 'yes',
++        'ac_cv_func_pipe': 'yes',
++        'ac_cv_func_pthread_kill': 'yes',
++        'ac_cv_func_select': 'yes',
++        'ac_cv_func_poll': 'yes',
++        'ac_cv_func_memmem': 'yes',
++        'ac_cv_func_umask': 'yes',
++        'ac_cv_func_execv': 'yes',
++        'ac_cv_func_waitpid': 'yes',
++        'ac_cv_func_getpwnam': 'yes',
++        'ac_cv_func_endpwent': 'yes',
++        'ac_cv_func_popen': 'yes',
++        'ac_cv_func_pclose': 'yes',
++        'ac_cv_func_chown': 'yes',
++        'ac_cv_func_sysconf': 'yes',
++        'ac_cv_func_getppid': 'yes',
++        'ac_cv_func_getrusage': 'yes',
++        'ac_cv_func_execl': 'yes',
++        'ac_cv_func_execle': 'yes',
++        'ac_cv_func_ioctl': 'yes',
++        'ac_cv_header_sys_mman_h': 'no',
++        'ac_cv_func_dlopen': 'no',
++        'ac_cv_lib_dl_dlopen': 'no',
++    }
++    switch_link_args = switch_libs
++    # devkitA64 miscompiles -fPIC soft-TLS accesses (ruby-3.1-switch.patch)
++    cflags += '-DRB_THREAD_LOCAL_SPECIFIER_IS_UNSUPPORTED'
++    cppflags += '-DRB_THREAD_LOCAL_SPECIFIER_IS_UNSUPPORTED'
++endif
++
+ ruby = declare_dependency(
+     dependencies: [
+         ruby_deps,
+@@ -58,7 +122,7 @@ ruby = declare_dependency(
+                 '--with-soname=ruby',
+                 '--disable-shared',
+                 '--disable-install-doc',
+-                '--with-out-ext=openssl,readline,dbm,gdbm',
++                '--with-out-ext=openssl,readline,dbm,gdbm' + (is_switch ? ',pty,syslog,fiddle,bigdecimal,io/console,-test-/*' : ''),
+                 '--with-static-linked-ext',
+                 '--disable-rubygems',
+                 '--without-gmp',
+@@ -76,6 +140,7 @@ ruby = declare_dependency(
+                 'CFLAGS=' + run_command(subproject('common').get_variable('quotetool'), cflags, check: true).stdout().strip() + ' ' + get_option('cflags'),
+                 'CXXFLAGS=' + run_command(subproject('common').get_variable('quotetool'), cppflags, check: true).stdout().strip() + ' ' + get_option('cppflags'),
+                 'LDFLAGS=' + run_command(subproject('common').get_variable('quotetool'), ldflags, check: true).stdout().strip() + ' ' + get_option('ldflags'),
++                switch_configure_options,
+             ],
+             cross_configure_options: [
+                 '--host=@HOST@',
+@@ -101,7 +166,7 @@ ruby = declare_dependency(
+                 'rb_cv_gcc_sync_builtins': 'no',
+                 'rb_cv_prog_gnu_ld': subproject('common').get_variable('c_linker_is_gnu') ? 'yes' : 'no',
+                 'rb_cv_symbol_prefix': meson.get_compiler('c').symbols_have_underscore_prefix() ? '_' : 'NONE',
+-            },
++            } + switch_env,
+             depends: [
+                 # Force Meson to fully build all of our vendored dependencies that are required by Ruby before building Ruby itself
+                 executable(
+@@ -160,7 +225,7 @@ ruby = declare_dependency(
+             ]
+             : [],
+         meson.project_build_root() / 'build' / 'ext' / 'extinit.a',
+-        meson.project_build_root() / 'build' / 'ext' / 'bigdecimal' / 'bigdecimal.a',
++        is_switch ? [] : meson.project_build_root() / 'build' / 'ext' / 'bigdecimal' / 'bigdecimal.a',
+         meson.project_build_root() / 'build' / 'ext' / 'cgi' / 'escape' / 'escape.a',
+         meson.project_build_root() / 'build' / 'ext' / 'continuation' / 'continuation.a',
+         meson.project_build_root() / 'build' / 'ext' / 'coverage' / 'coverage.a',
+@@ -173,8 +238,8 @@ ruby = declare_dependency(
+         meson.project_build_root() / 'build' / 'ext' / 'digest' / 'sha2' / 'sha2.a',
+         meson.project_build_root() / 'build' / 'ext' / 'etc' / 'etc.a',
+         meson.project_build_root() / 'build' / 'ext' / 'fcntl' / 'fcntl.a',
+-        meson.project_build_root() / 'build' / 'ext' / 'fiddle' / 'fiddle.a',
+-        meson.project_build_root() / 'build' / 'ext' / 'io' / 'console' / 'console.a',
++        is_switch ? [] : meson.project_build_root() / 'build' / 'ext' / 'fiddle' / 'fiddle.a',
++        is_switch ? [] : meson.project_build_root() / 'build' / 'ext' / 'io' / 'console' / 'console.a',
+         meson.project_build_root() / 'build' / 'ext' / 'io' / 'nonblock' / 'nonblock.a',
+         meson.project_build_root() / 'build' / 'ext' / 'io' / 'wait' / 'wait.a',
+         meson.project_build_root() / 'build' / 'ext' / 'json' / 'generator' / 'generator.a',
+@@ -196,14 +261,18 @@ ruby = declare_dependency(
+                 meson.project_build_root() / 'build' / 'ext' / 'win32' / 'resolv' / 'resolv.a',
+                 meson.project_build_root() / 'build' / 'ext' / 'win32ole' / 'win32ole.a',
+             ]
+-            : [
++            : [],
++        host_machine.system() not in ['windows', 'cygwin', 'switch']
++            ? [
+                 meson.project_build_root() / 'build' / 'ext' / 'pty' / 'pty.a',
+                 meson.project_build_root() / 'build' / 'ext' / 'syslog' / 'syslog.a',
+-            ],
++            ]
++            : [],
+         meson.project_build_root() / 'build' / 'enc' / 'encinit.a',
+         meson.project_build_root() / 'build' / 'enc' / 'libenc.a',
+         meson.project_build_root() / 'build' / 'enc' / 'libtrans.a',
+         meson.project_build_root() / 'build' / 'libruby-static.a',
++        switch_link_args,
+     ],
+ )
+ 
+diff --git a/subprojects/packagefiles/ruby-3.1/switch-shim.c b/subprojects/packagefiles/ruby-3.1/switch-shim.c
+new file mode 100644
+index 00000000..9a2ab5dc
+--- /dev/null
++++ b/subprojects/packagefiles/ruby-3.1/switch-shim.c
+@@ -0,0 +1,88 @@
++/* Nintendo Switch (libnx): POSIX functions Ruby links against that newlib
++ * and libnx don't provide. Processes, users and dynamic loading don't exist
++ * there, so most of these fail. See also switch_shim.h from
++ * ruby-3.1-switch.patch. From GQster's mkxp-z Switch port. */
++
++#include <errno.h>
++#include <pthread.h>
++#include <pwd.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/resource.h>
++#include <sys/stat.h>
++#include <sys/types.h>
++#include <sys/wait.h>
++#include <unistd.h>
++
++#include <switch/kernel/thread.h>
++
++uid_t getuid(void) { return 0; }
++uid_t geteuid(void) { return 0; }
++gid_t getgid(void) { return 0; }
++gid_t getegid(void) { return 0; }
++
++int pipe(int pipefd[2]) { (void)pipefd; return -1; }
++
++int pthread_kill(pthread_t thread, int sig) { (void)thread; (void)sig; return 0; }
++
++/* Bounds of the calling thread's stack, for get_stack() in thread_pthread.c */
++int rb_switch_get_stack(void **addr, size_t *size) {
++    Thread *t = threadGetSelf();
++    if (!t || !t->stack_mirror) return -1;
++    *addr = t->stack_mirror; /* libnx threads run on the mirror mapping */
++    *size = t->stack_sz;
++    return 0;
++}
++
++void *memmem(const void *haystack, size_t haystacklen, const void *needle, size_t needlelen) {
++    if (!haystack || !needle || needlelen > haystacklen) return NULL;
++    if (needlelen == 0) return (void *)haystack;
++    const char *h = (const char *)haystack;
++    for (size_t i = 0; i <= haystacklen - needlelen; i++) {
++        if (memcmp(h + i, needle, needlelen) == 0) return (void *)(h + i);
++    }
++    return NULL;
++}
++
++mode_t umask(mode_t mask) { (void)mask; return 0; }
++
++int execv(const char *path, char *const argv[]) { (void)path; (void)argv; return -1; }
++int execl(const char *path, const char *arg, ...) { (void)path; (void)arg; return -1; }
++int execle(const char *path, const char *arg, ...) { (void)path; (void)arg; return -1; }
++pid_t waitpid(pid_t pid, int *status, int options) { (void)pid; (void)status; (void)options; return -1; }
++pid_t getppid(void) { return 0; }
++
++struct passwd *getpwnam(const char *name) { (void)name; return NULL; }
++struct passwd *getpwuid(uid_t uid) { (void)uid; return NULL; }
++void endpwent(void) {}
++
++FILE *popen(const char *command, const char *type) { (void)command; (void)type; return NULL; }
++int pclose(FILE *stream) { (void)stream; return -1; }
++
++int chown(const char *pathname, uid_t owner, gid_t group) { (void)pathname; (void)owner; (void)group; return 0; }
++
++/* Ruby sizes fiber stacks from _SC_PAGESIZE in Init_Cont; returning -1 there
++ * overflows the fiber pool size, raises FiberError, and ruby_init() exits. */
++long sysconf(int name) {
++    switch (name) {
++      case _SC_PAGESIZE: return 0x1000; /* Horizon uses 4 KiB pages */
++      default: errno = EINVAL; return -1;
++    }
++}
++
++int getrusage(int who, struct rusage *usage) { (void)who; (void)usage; return -1; }
++
++/* malloc-backed stand-ins, for code that doesn't see switch_shim.h's inline
++ * versions */
++void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset) {
++    (void)addr; (void)prot; (void)flags; (void)fd; (void)offset;
++    return malloc(length);
++}
++int munmap(void *addr, size_t length) { (void)length; free(addr); return 0; }
++int mprotect(void *addr, size_t len, int prot) { (void)addr; (void)len; (void)prot; return 0; }
++
++void *dlopen(const char *filename, int flag) { (void)filename; (void)flag; return NULL; }
++int dlclose(void *handle) { (void)handle; return 0; }
++void *dlsym(void *handle, const char *symbol) { (void)handle; (void)symbol; return NULL; }
++char *dlerror(void) { return NULL; }
+diff --git a/subprojects/ruby-3.1.wrap b/subprojects/ruby-3.1.wrap
+index 895a43b5..69a038fc 100644
+--- a/subprojects/ruby-3.1.wrap
++++ b/subprojects/ruby-3.1.wrap
+@@ -33,4 +33,5 @@ diff_files =
+     ruby-3.1-mkxp-z-patches.patch,
+     ruby-3.1-clock-gettime.patch,
+     ruby-3.1-mkxp-z-patches-windows-libs.patch,
++    ruby-3.1-switch.patch,
+     end-of-diff-files.patch

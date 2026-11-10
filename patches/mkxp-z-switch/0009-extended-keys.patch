@@ -1,0 +1,22 @@
+# Binds F5, F6 and F7 (Input::E, F and D in some games) to ZL, ZR and minus.
+
+diff --git a/src/input/keybindings.cpp b/src/input/keybindings.cpp
+index e62076a8..937c09b3 100644
+--- a/src/input/keybindings.cpp
++++ b/src/input/keybindings.cpp
+@@ -157,6 +157,15 @@ BDescVec genDefaultBindings(const Config &conf)
+ 	addAxisBinding(d, SDL_CONTROLLER_AXIS_LEFTY, Negative, Input::Up   );
+ 	addAxisBinding(d, SDL_CONTROLLER_AXIS_LEFTY, Positive, Input::Down );
+ 
++#ifdef __SWITCH__
++	/* No keyboard: F5, F6 and F7 (Input::E, F and D in some games) go on
++	 * ZL, ZR and the minus button */
++	addAxisBinding(d, SDL_CONTROLLER_AXIS_TRIGGERLEFT, Positive, Input::F5);
++	addAxisBinding(d, SDL_CONTROLLER_AXIS_TRIGGERRIGHT, Positive, Input::F6);
++	CtrlBindingData minus = { SDL_CONTROLLER_BUTTON_BACK, Input::F7 };
++	minus.add(d);
++#endif
++
+ 	return d;
+ }
+ 

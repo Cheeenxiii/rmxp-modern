@@ -1,0 +1,267 @@
+# Builds mkxp-z for the Switch with devkitA64 and packages it as a .nro.
+# From GQster's mkxp-z Switch port (cross file, Meson changes, HTTP stub).
+
+diff --git a/meson.build b/meson.build
+index 2b3dc514..2c1357d5 100644
+--- a/meson.build
++++ b/meson.build
+@@ -49,7 +49,7 @@ if get_option('gfx_backend') == 'gl'
+     use_gles_by_default = false
+ elif get_option('gfx_backend') == 'gles'
+     use_gles_by_default = true
+-elif host_system == 'android'
++elif host_system in ['android', 'switch']
+     use_gles_by_default = true
+ elif host_system == 'darwin'
+     # If the host machine is macOS (as opposed to iOS, tvOS, etc.), use OpenGL by default, otherwise use OpenGL ES by default
+@@ -116,6 +116,9 @@ if host_system in ['windows', 'cygwin']
+     windows_resource_directory = '../' + get_option('windows_resource_directory')
+     subdir('windows')
+     global_include_dirs += include_directories('windows')
++elif host_system == 'switch'
++    subdir('switch')
++    windows_resources = []
+ else
+     windows_resources = []
+ endif
+@@ -182,7 +185,7 @@ libmkxp = static_library(
+     override_options: {'c_std': c_std, 'cpp_std': cpp_std},
+ )
+ 
+-executable(
++mkxpz_exe = executable(
+     exe_name,
+     sources: [
+         git_hash_file, # Dummy source file just so that Meson doesn't complain about the executable not having any sources
+@@ -199,6 +202,10 @@ executable(
+     install_tag: meson.project_name(),
+ )
+ 
++if host_system == 'switch'
++    subdir('switch/nro')
++endif
++
+ global_install_tags = [meson.project_name()]
+ if host_system == 'darwin'
+     global_install_tags += meson.project_name() + '-bundle'
+diff --git a/src/meson.build b/src/meson.build
+index 3ee772d2..7dce395a 100755
+--- a/src/meson.build
++++ b/src/meson.build
+@@ -1038,6 +1038,7 @@ if not sdl2_image.found()
+         'CMAKE_C_FLAGS': run_command(quotetool, sdl2_image_internal_cflags + sdl2_image_external_cflags, check: true).stdout().strip(),
+         'CMAKE_CXX_FLAGS': run_command(quotetool, sdl2_image_internal_cflags + sdl2_image_external_cflags, check: true).stdout().strip(),
+         'BUILD_SHARED_LIBS': false,
++        'BUILD_TESTING': false,
+         'SDL2IMAGE_JPG_SAVE': true,
+         'SDL2IMAGE_PNG_SAVE': true,
+         'SDL2IMAGE_PNG_SHARED': false,
+@@ -1130,7 +1131,9 @@ if not fluidsynth.found()
+ endif
+ global_dependencies += fluidsynth
+ 
+-global_args += '-DMKXPZ_FLUIDSYNTH_SONAME="' + run_command(sonametool, 'fluidsynth', check: true).stdout().strip() + '"'
++if host_system != 'switch'
++    global_args += '-DMKXPZ_FLUIDSYNTH_SONAME="' + run_command(sonametool, 'fluidsynth', check: true).stdout().strip() + '"'
++endif
+ 
+ ruby = dependency('ruby-' + get_option('mri_version'), allow_fallback: false, required: get_option('ruby_system').disable_auto_if(default_system_disabled).enable_auto_if(default_system_enabled))
+ if not ruby.found()
+@@ -1284,7 +1287,7 @@ main_source = files(
+     'input/keybindings.cpp',
+ 
+     'net/LUrlParser.cpp',
+-    'net/net.cpp',
++    host_system != 'switch' ? 'net/net.cpp' : [], # Switch: switch/switch_http_stub.cpp
+ 
+     host_system == 'darwin' ? 'system/systemImplApple.mm' : 'system/systemImpl.cpp',
+ )
+diff --git a/src/system/system.h b/src/system/system.h
+index f4064863..d9bc41f9 100644
+--- a/src/system/system.h
++++ b/src/system/system.h
+@@ -14,11 +14,14 @@
+ #define MKXPZ_PLATFORM_MACOS 1
+ #define MKXPZ_PLATFORM_LINUX 2
+ #define MKXPZ_PLATFORM_BSD 3
++#define MKXPZ_PLATFORM_SWITCH 4
+ 
+ #ifdef __WIN32__
+ #define MKXPZ_PLATFORM MKXPZ_PLATFORM_WINDOWS
+ #elif defined __APPLE__
+ #define MKXPZ_PLATFORM MKXPZ_PLATFORM_MACOS
++#elif defined __SWITCH__
++#define MKXPZ_PLATFORM MKXPZ_PLATFORM_SWITCH
+ #elif defined __linux__
+ #define MKXPZ_PLATFORM MKXPZ_PLATFORM_LINUX
+ #elif defined __DragonFly__ || defined __FreeBSD__ || defined __NetBSD__ || defined __OpenBSD__
+diff --git a/subprojects/common/meson.build b/subprojects/common/meson.build
+index bc22d3af..404125d4 100644
+--- a/subprojects/common/meson.build
++++ b/subprojects/common/meson.build
+@@ -40,6 +40,9 @@ else
+     host_triplet_os = host_machine.system()
+ endif
+ host_triplet = host_triplet_cpu + '-' + host_triplet_vendor + '-' + host_triplet_os
++if host_machine.system() == 'switch'
++    host_triplet = 'aarch64-none-elf' # devkitA64
++endif
+ 
+ base_cflags = []
+ base_cppflags = []
+diff --git a/switch/meson.build b/switch/meson.build
+new file mode 100644
+index 00000000..7d0f183d
+--- /dev/null
++++ b/switch/meson.build
+@@ -0,0 +1,5 @@
++# Nintendo Switch (libnx) platform code
++global_sources += files(
++    'switch_http_stub.cpp',
++    'switch_main.cpp',
++)
+diff --git a/switch/nro/meson.build b/switch/nro/meson.build
+new file mode 100644
+index 00000000..c5f783ac
+--- /dev/null
++++ b/switch/nro/meson.build
+@@ -0,0 +1,25 @@
++# Package the executable as a homebrew .nro, with a RomFS made of
++# switch/romfs-root/
++nacp = custom_target(
++    'nacp',
++    output: meson.project_name() + '.nacp',
++    command: [
++        find_program('nacptool'), '--create',
++        meson.project_name(), meson.project_name(), meson.project_version(),
++        '@OUTPUT@',
++    ],
++)
++
++custom_target(
++    'nro',
++    input: [mkxpz_exe, nacp],
++    output: meson.project_name() + '.nro',
++    command: [
++        find_program('elf2nro'), '@INPUT0@', '@OUTPUT@', '--nacp=@INPUT1@',
++        '--romfsdir=' + (meson.project_source_root() / 'switch' / 'romfs-root'),
++    ],
++    build_by_default: true,
++    install: true,
++    install_dir: '.',
++    install_tag: meson.project_name(),
++)
+diff --git a/switch/switch.ini b/switch/switch.ini
+new file mode 100644
+index 00000000..8bf2f421
+--- /dev/null
++++ b/switch/switch.ini
+@@ -0,0 +1,47 @@
++# Meson cross file for Nintendo Switch homebrew (devkitA64 + libnx), for the
++# devkitpro/devkita64 Docker image. Based on GQster's mkxp-z Switch port.
++#
++#   meson setup --cross-file switch/switch.ini --buildtype release build
++#   ninja -C build                  # build/switch/nro/mkxp-z.nro
++#
++# -ftls-model=local-exec: devkitA64 miscompiles -fPIC soft-TLS accesses
++# otherwise. devkitPro builds its portlibs the same way.
++
++[binaries]
++c = '/opt/devkitpro/devkitA64/bin/aarch64-none-elf-gcc'
++cpp = '/opt/devkitpro/devkitA64/bin/aarch64-none-elf-g++'
++ar = '/opt/devkitpro/devkitA64/bin/aarch64-none-elf-gcc-ar'
++strip = '/opt/devkitpro/devkitA64/bin/aarch64-none-elf-strip'
++cmake = 'cmake'
++pkg-config = '/opt/devkitpro/portlibs/switch/bin/aarch64-none-elf-pkg-config'
++nacptool = '/opt/devkitpro/tools/bin/nacptool'
++elf2nro = '/opt/devkitpro/tools/bin/elf2nro'
++
++[properties]
++needs_exe_wrapper = true
++
++[built-in options]
++c_args = ['-D__SWITCH__', '-march=armv8-a', '-mtune=cortex-a57', '-mtp=soft', '-fPIE', '-ftls-model=local-exec', '-isystem', '/opt/devkitpro/libnx/include', '-I/opt/devkitpro/portlibs/switch/include']
++# -Wno-template-body: newlib's libstdc++ has no std::stold(std::string), which
++# rapidcsv's unused numeric converter names
++cpp_args = ['-D__SWITCH__', '-march=armv8-a', '-mtune=cortex-a57', '-mtp=soft', '-fPIE', '-ftls-model=local-exec', '-isystem', '/opt/devkitpro/libnx/include', '-I/opt/devkitpro/portlibs/switch/include', '-Wno-template-body']
++c_link_args = ['-specs=/opt/devkitpro/libnx/switch.specs', '-march=armv8-a', '-mtune=cortex-a57', '-mtp=soft', '-fPIE', '-L/opt/devkitpro/portlibs/switch/lib', '-L/opt/devkitpro/libnx/lib']
++cpp_link_args = ['-specs=/opt/devkitpro/libnx/switch.specs', '-march=armv8-a', '-mtune=cortex-a57', '-mtp=soft', '-fPIE', '-L/opt/devkitpro/portlibs/switch/lib', '-L/opt/devkitpro/libnx/lib']
++
++[project options]
++# SDL2 and OpenAL come from devkitPro's portlibs (libnx, and Mesa for
++# EGL/GLES). Everything else is built from the subprojects.
++sdl_system = 'enabled'
++openal_system = 'enabled'
++use_miniffi = false
++openssl = 'disabled'
++
++[cmake]
++# Static libraries only, as in devkitPro's own CMake platform files
++CMAKE_SYSTEM_NAME = 'Generic'
++
++[host_machine]
++system = 'switch'
++cpu_family = 'aarch64'
++cpu = 'cortex-a57'
++endian = 'little'
+diff --git a/switch/switch_http_stub.cpp b/switch/switch_http_stub.cpp
+new file mode 100644
+index 00000000..97b1b1d5
+--- /dev/null
++++ b/switch/switch_http_stub.cpp
+@@ -0,0 +1,38 @@
++// No HTTP client on Switch (no OpenSSL): requests return an empty response.
++// From GQster's mkxp-z Switch port.
++#ifdef __SWITCH__
++#include "net/net.h"
++
++namespace mkxp_net {
++
++// HTTPResponse implementation
++int HTTPResponse::status() { return 0; }
++std::string &HTTPResponse::body() { return _body; }
++StringMap &HTTPResponse::headers() { return _headers; }
++HTTPResponse::~HTTPResponse() {}
++HTTPResponse::HTTPResponse() : _status(0) {}
++
++// HTTPRequest implementation
++HTTPRequest::HTTPRequest(const char *dest, bool follow_redirects) {
++    (void)dest; (void)follow_redirects;
++}
++HTTPRequest::~HTTPRequest() {}
++
++StringMap &HTTPRequest::headers() { return _headers; }
++
++HTTPResponse HTTPRequest::get() {
++    return HTTPResponse();
++}
++
++HTTPResponse HTTPRequest::post(StringMap &postData) {
++    (void)postData;
++    return HTTPResponse();
++}
++
++HTTPResponse HTTPRequest::post(const char *body, const char *content_type) {
++    (void)body; (void)content_type;
++    return HTTPResponse();
++}
++
++} // namespace mkxp_net
++#endif
+diff --git a/switch/switch_main.cpp b/switch/switch_main.cpp
+new file mode 100644
+index 00000000..7338bdf9
+--- /dev/null
++++ b/switch/switch_main.cpp
+@@ -0,0 +1,11 @@
++// Nintendo Switch (libnx) process setup: mount the .nro's RomFS, which holds
++// the preload scripts (see src/main.cpp). Based on GQster's mkxp-z Switch
++// port.
++#ifdef __SWITCH__
++// libnx's headers include <assert.h>; keep Ruby's from being picked up
++#define RUBY_ASSERT_H 1
++#include <switch.h>
++
++extern "C" void userAppInit(void) { romfsInit(); }
++extern "C" void userAppExit(void) { romfsExit(); }
++#endif

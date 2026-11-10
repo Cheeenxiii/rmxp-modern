@@ -1,0 +1,22 @@
+# Skips MIDI files on Switch, where SDL_sound's MIDI decoder hangs.
+# From GQster's mkxp-z Switch port.
+
+diff --git a/src/audio/alstream.cpp b/src/audio/alstream.cpp
+index a37ea712..bc9bbd1a 100644
+--- a/src/audio/alstream.cpp
++++ b/src/audio/alstream.cpp
+@@ -223,6 +223,14 @@ struct ALStreamOpenHandler : FileSystem::OpenHandler
+ 					source = createMidiSource(ops, looped);
+ 					return true;
+ 				}
++#ifdef __SWITCH__
++				/* Without FluidSynth, SDL_sound's MIDI decoder blocks
++				 * forever on Switch. Skip the file so that a same-named
++				 * non-MIDI track is tried. */
++				SDL_RWclose(&ops);
++				errorMsg = "MIDI playback is unavailable";
++				return false;
++#endif
+ 			}
+ 
+ 			source = createSDLSource(ops, ext, STREAM_BUF_SIZE, looped);

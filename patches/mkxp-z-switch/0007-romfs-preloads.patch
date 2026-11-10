@@ -1,0 +1,52 @@
+# Loads the Ruby preloads from the RomFS, skipping shims the game already has.
+
+diff --git a/src/main.cpp b/src/main.cpp
+index d61ec655..dc7007d2 100644
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -35,6 +35,7 @@
+ 
+ #include <cassert>
+ #include <cstring>
++#include <vector>
+ #include <string>
+ #include <unistd.h>
+ 
+@@ -300,6 +301,37 @@ int main(int argc, char *argv[]) {
+     if (conf.windowTitle.empty())
+       conf.windowTitle = conf.game.title;
+ 
++#ifdef __SWITCH__
++    // Ruby stand-ins from the RomFS (no MiniFFI, and the static Ruby has no
++    // standard library files) run before the game's own preload scripts.
++    // A shim the game already provides is not loaded twice: win32_wrap
++    // aliases Graphics.update, and loading it twice recurses.
++    static const char *const switchPreloads[] = {
++      "romfs:/preload/switch_paths.rb", // first: absolute paths for require
++      "romfs:/preload/stdlib_delegate.rb",
++      "romfs:/preload/stdlib_timeout.rb",
++      "romfs:/preload/stdlib_weakref.rb",
++      "romfs:/preload/stdlib_rubygems_stub.rb",
++      "romfs:/preload/stdlib_net_http_stub.rb",
++      "romfs:/preload/stdlib_discord_stub.rb",
++      "romfs:/preload/win32api_stub.rb",
++      "romfs:/preload/win32_wrap.rb",
++    };
++    std::vector<std::string> preloads;
++    for (const char *path : switchPreloads) {
++      const char *name = std::strrchr(path, '/') + 1;
++      bool provided = false;
++      for (const std::string &existing : conf.preloadScripts) {
++        size_t slash = existing.find_last_of('/');
++        if (existing.compare(slash == std::string::npos ? 0 : slash + 1, std::string::npos, name) == 0)
++          provided = true;
++      }
++      if (!provided)
++        preloads.push_back(path);
++    }
++    conf.preloadScripts.insert(conf.preloadScripts.begin(), preloads.begin(), preloads.end());
++#endif
++
+ #if defined(__WIN32__)
+     // Create a debug console in debug mode
+     if (conf.winConsole) {
