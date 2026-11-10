@@ -2,20 +2,16 @@
 # SPDX-FileCopyrightText: 2026 Cheeenxiii
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# Fetches mkxp-z and its Switch port as submodules, then applies our patches.
-# Safe to run again: an already patched checkout is left as is.
+# Fetches mkxp-z as a submodule, applies our desktop and Switch patches, and
+# installs the Switch RomFS preloads. The Switch changes only take effect in a
+# Switch build. Safe to run again: an already patched checkout is left as is.
 #
-# usage: script/setup [desktop|switch|all]   (default: all)
+# usage: script/setup
 
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
-target="${1:-all}"
-
-case "$target" in
-  desktop|switch|all) ;;
-  *) echo "usage: script/setup [desktop|switch|all]" >&2; exit 2 ;;
-esac
+mkxpz="$root/vendor/mkxp-z"
 
 # Prints the tree that HEAD of checkout $1 gives with the patches $2... applied.
 patched_tree() {
@@ -23,63 +19,46 @@ patched_tree() {
   local index patch tree
   index="$(mktemp)"
   GIT_INDEX_FILE="$index" git -C "$repo" read-tree HEAD
-  for patch in "$@"; do GIT_INDEX_FILE="$index" git -C "$repo" apply --cached "$patch"; done
+  for patch in "$@"; do GIT_INDEX_FILE="$index" git -C "$repo" apply --cached --whitespace=nowarn "$patch"; done
   tree="$(GIT_INDEX_FILE="$index" git -C "$repo" write-tree)"
   rm -f "$index"
   echo "$tree"
 }
 
 # Prints the tree of the tracked files in the working copy of checkout $1.
+# Patches are applied with --index, so the files they add are tracked.
 working_tree() {
   local index tree
   index="$(mktemp)"
-  GIT_INDEX_FILE="$index" git -C "$1" read-tree HEAD
+  cp "$(git -C "$1" rev-parse --path-format=absolute --git-path index)" "$index"
   GIT_INDEX_FILE="$index" git -C "$1" add -u
   tree="$(GIT_INDEX_FILE="$index" git -C "$1" write-tree)"
   rm -f "$index"
   echo "$tree"
 }
 
-# Applies the patch series in $2 to the checkout in $1. Skips it if it is
+# Applies the patches $2... to the checkout in $1. Skips it if they are
 # already applied; refuses if the checkout has other changes.
 apply_patches() {
-  local repo="$1" dir="$2" patch current
-  local patches=("$dir"/*.patch)
+  local repo="$1"; shift
+  local patch current
   current="$(working_tree "$repo")"
   if [ "$current" = "$(git -C "$repo" rev-parse 'HEAD^{tree}')" ]; then
-    for patch in "${patches[@]}"; do git -C "$repo" apply "$patch"; done
-    echo "  applied ${#patches[@]} patch(es) from ${dir#"$root"/}"
-  elif [ "$current" = "$(patched_tree "$repo" "${patches[@]}")" ]; then
-    echo "  patches already applied"
+    for patch in "$@"; do git -C "$repo" apply --index --whitespace=nowarn "$patch"; done
+    echo "applied $# patches to vendor/mkxp-z"
+  elif [ "$current" = "$(patched_tree "$repo" "$@")" ]; then
+    echo "vendor/mkxp-z is already patched"
   else
-    echo "  ${repo#"$root"/} has changes that are not our patches." >&2
-    echo "  Reset it with: git -C ${repo#"$root"/} checkout ." >&2
+    echo "vendor/mkxp-z has changes that are not our patches." >&2
+    echo "Reset it with: git -C vendor/mkxp-z reset --hard" >&2
     exit 1
   fi
 }
 
-if [ "$target" != switch ]; then
-  echo "mkxp-z (desktop): vendor/mkxp-z"
-  git -C "$root" submodule update --init vendor/mkxp-z
-  apply_patches "$root/vendor/mkxp-z" "$root/patches/mkxp-z"
-fi
+git -C "$root" submodule update --init vendor/mkxp-z
+apply_patches "$mkxpz" "$root"/patches/mkxp-z/*.patch "$root"/patches/mkxp-z-switch/*.patch
 
-if [ "$target" != desktop ]; then
-  echo "mkxp-z Switch port: vendor/mkxp-z-switch"
-  git -C "$root" submodule update --init vendor/mkxp-z-switch
-  port="$root/vendor/mkxp-z-switch"
-  # Our win32_wrap.rb overwrites the port's (see below); undo that first.
-  git -C "$port" checkout -- scripts/preload/win32_wrap.rb
-  apply_patches "$port" "$root/patches/mkxp-z-switch"
-  # The Ruby files ship in the .nro's RomFS. win32_wrap.rb replaces the port's
-  # copy, which the build adds to the RomFS after switch/romfs-root/.
-  for script in "$root"/patches/mkxp-z-switch/*.rb; do
-    case "$(basename "$script")" in
-      win32_wrap.rb) cp "$script" "$port/scripts/preload/win32_wrap.rb" ;;
-      *) cp "$script" "$port/switch/romfs-root/preload/" ;;
-    esac
-  done
-  echo "  installed Ruby preloads in switch/romfs-root/preload/"
-fi
+mkdir -p "$mkxpz/switch/romfs-root/preload"
+cp "$root"/patches/mkxp-z-switch/*.rb "$mkxpz/switch/romfs-root/preload/"
 
 echo "Done. See docs/setup.md to build."
