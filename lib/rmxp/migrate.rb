@@ -4,6 +4,7 @@
 require "fileutils"
 require "yaml"
 require "json"
+require "open3"
 require "prism"
 
 module Rmxp
@@ -13,6 +14,11 @@ module Rmxp
   class Migrate
     FLAGS = { "i" => "Regexp::IGNORECASE", "m" => "Regexp::MULTILINE", "x" => "Regexp::EXTENDED" }.freeze
     COMPAT = File.expand_path("preload/compat", __dir__)
+    GIF_MANIFEST = "gif_frames.txt"
+    GIF_SCRIPT = "9999_rmxp_gif_frames.rb"
+    # gif.dll returns frame times in 1/100 s, and GifBitmap compares them with
+    # a counter incremented by 2 per update. Keep the same unit.
+    GIF_DELAY_UNITS = 100
     PRELOADS = %w[preload/win32_wrap.rb preload/ruby18_wrap.rb preload/ruby18_extra.rb
                   preload/mkxp_wrap.rb preload/add_stdlib.rb preload/power_cache.rb preload/tmp_env.rb preload/errno_dir.rb preload/input_ext.rb].freeze
 
@@ -60,6 +66,7 @@ module Rmxp
       end
 
       append_string_input_compat(scripts_dir)
+      append_gif_frames_compat(scripts_dir) unless convert_gifs.empty?
       File.binwrite(File.join(@out_dir, "Data/Scripts.rxdata"), Rmxp::Scripts.build(@out_dir))
       install_preloads
       ensure_game_ini
@@ -363,6 +370,120 @@ module Rmxp
       scripts = manifest.fetch("scripts")
       main = scripts.index { |entry| entry["file"].include?("Main") } || scripts.length
       scripts.insert(main, { "id" => 9_999_999, "file" => file, "name" => "rmxp compat" })
+      File.write(path, YAML.dump(manifest))
+    end
+
+    # Animated GIFs in pre-v19 Essentials are decoded by a Windows gif.dll.
+    # Convert them once, at migration time, to PNG frames plus a plain-text
+    # manifest read by preload/gif_frames.rb at runtime.
+    def convert_gifs
+      gifs = Dir.glob(File.join(@out_dir, "Graphics", "**", "*.gif"), File::FNM_CASEFOLD).sort
+      return [] if gifs.empty?
+
+      unless gif_tools_available?
+        warn "rmxp: ffmpeg/ffprobe not found; animated GIFs will not be converted"
+        return []
+      end
+
+      converted = gifs.filter_map { |gif| convert_gif(gif) }
+      write_gif_manifest(converted) unless converted.empty?
+      converted
+    end
+
+    def convert_gif(gif)
+      relative = relative_to_out(gif)
+      base = File.basename(gif, File.extname(gif))
+      frames_dir = File.join(File.dirname(gif), "#{base}.frames")
+      FileUtils.rm_rf(frames_dir)
+      FileUtils.mkdir_p(frames_dir)
+
+      unless extract_gif_frames(gif, frames_dir)
+        FileUtils.rm_rf(frames_dir)
+        warn "rmxp: could not extract frames from #{relative}; GIF left as is"
+        return nil
+      end
+
+      frames = Dir.glob(File.join(frames_dir, "frame*.png"))
+      durations = probe_gif_durations(gif)
+      if frames.empty? || durations.nil? || durations.length != frames.length
+        FileUtils.rm_rf(frames_dir)
+        warn "rmxp: could not read frame delays from #{relative}; GIF left as is"
+        return nil
+      end
+
+      delays = durations.map { |duration| [(duration * GIF_DELAY_UNITS).round, 1].max }
+      { "key" => "#{base}_tmp_", "dir" => relative_to_out(frames_dir), "delays" => delays }
+    end
+
+    def extract_gif_frames(gif, frames_dir)
+      output = File.join(frames_dir, "frame%04d.png")
+      # -fps_mode is the modern spelling; -vsync keeps older ffmpeg working.
+      [["-fps_mode", "passthrough"], ["-vsync", "0"]].each do |mode|
+        _out, err, status = run_tool("ffmpeg", "-y", "-v", "error", "-i", gif, *mode,
+                                     "-start_number", "0", output)
+        return true if status&.success?
+        break if status.nil? || !err.include?("Unrecognized option")
+      end
+      false
+    end
+
+    # gif.dll returns cumulative frame times in 1/100 s, with the looping
+    # duration appended. ffprobe reports one line per frame; older versions
+    # expose pkt_duration_time, newer ones duration_time.
+    def probe_gif_durations(gif)
+      stdout, _err, status = run_tool(
+        "ffprobe", "-v", "error", "-select_streams", "v:0",
+        "-show_entries", "frame=pkt_duration_time,duration_time", "-of", "csv=p=0", gif
+      )
+      return nil unless status&.success?
+
+      durations = stdout.lines.filter_map do |line|
+        line.split(",").filter_map { |value| Float(value.strip) rescue nil }.last
+      end
+      durations.empty? ? nil : durations
+    end
+
+    def gif_tools_available?
+      %w[ffmpeg ffprobe].all? do |tool|
+        _out, _err, status = Open3.capture3(tool, "-version")
+        status.success?
+      rescue Errno::ENOENT
+        false
+      end
+    end
+
+    def run_tool(*command)
+      Open3.capture3(*command)
+    rescue Errno::ENOENT
+      [nil, "", nil]
+    end
+
+    def write_gif_manifest(entries)
+      entries.group_by { |entry| entry["key"] }.each do |key, duplicates|
+        warn "rmxp: several GIFs use the basename #{key}; only one frame set can load" if duplicates.length > 1
+      end
+      lines = ["# rmxp-modern GIF frames: key<TAB>frames dir<TAB>delays in 1/100 s"]
+      entries.each do |entry|
+        lines << [entry["key"], entry["dir"], entry["delays"].join(",")].join("\t")
+      end
+      File.write(File.join(@out_dir, GIF_MANIFEST), lines.join("\n") + "\n")
+    end
+
+    def relative_to_out(path)
+      path.delete_prefix("#{@out_dir}/").tr(File::SEPARATOR, "/")
+    end
+
+    def append_gif_frames_compat(scripts_dir)
+      file = GIF_SCRIPT
+      File.binwrite(File.join(scripts_dir, file), File.binread(File.join(COMPAT, "gif_frames.rb")))
+      path = File.join(@out_dir, Rmxp::Scripts::MANIFEST)
+      manifest = YAML.safe_load_file(path)
+      scripts = manifest.fetch("scripts")
+      main = scripts.index do |entry|
+        File.basename(entry["file"], ".rb").sub(/\A\d+_/, "") == "Main"
+      end
+      main ||= scripts.index { |entry| entry["file"].include?("Main") } || scripts.length
+      scripts.insert(main, { "id" => 9_999_998, "file" => file, "name" => "rmxp compat" })
       File.write(path, YAML.dump(manifest))
     end
 
