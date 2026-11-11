@@ -34,6 +34,21 @@ cases.each do |source, expected|
   puts "FAIL\nexpected: #{expected.inspect}\ngot:      #{got.inspect}"
 end
 
+# A pre-v19 kit ships Latin-1 file names; reading the directory must not
+# raise on an invalid UTF-8 byte sequence.
+latin_dir = Dir.mktmpdir("rmxp-migrate-latin")
+begin
+  File.binwrite(File.join(latin_dir, "Pok\xE9mon Essentials Wiki.URL"), "")
+  checker = Rmxp::Migrate.allocate
+  checker.instance_variable_set(:@game_dir, latin_dir)
+  checker.send(:check_archives)
+rescue StandardError => e
+  failures += 1
+  puts "FAIL non-UTF-8 file name: #{e.class}: #{e.message}"
+ensure
+  FileUtils.remove_entry(latin_dir)
+end
+
 archive_dir = Dir.mktmpdir("rmxp-migrate-archive")
 begin
   File.write(File.join(archive_dir, "Game.rgssad"), "")

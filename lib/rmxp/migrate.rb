@@ -21,7 +21,7 @@ module Rmxp
     # gif.dll returns frame times in 1/100 s, and GifBitmap compares them with
     # a counter incremented by 2 per update. Keep the same unit.
     GIF_DELAY_UNITS = 100
-    PRELOADS = %w[preload/win32_wrap.rb preload/ruby18_wrap.rb preload/ruby18_extra.rb
+    PRELOADS = %w[preload/win32_wrap.rb preload/font_installer.rb preload/ruby18_wrap.rb preload/ruby18_extra.rb
                   preload/mkxp_wrap.rb preload/hm7_fallback.rb preload/add_stdlib.rb preload/power_cache.rb preload/tmp_env.rb preload/errno_dir.rb preload/input_ext.rb
                   preload/window_scale.rb].freeze
 
@@ -242,7 +242,9 @@ module Rmxp
     # Data/Constants.rxdata). Refuse a game still shipped encrypted: the user
     # must extract the archive first with an external tool.
     def check_archives
-      found = Dir.children(@game_dir).select { |name| name.match?(/\.(rgssad|rgss2a|rgss3a)\z/i) }
+      # Pre-v19 kits ship files with Latin-1 names; match on bytes so a
+      # non-UTF-8 name cannot abort the migration.
+      found = Dir.children(@game_dir).select { |name| name.b.match?(/\.(rgssad|rgss2a|rgss3a)\z/i) }
       return if found.empty?
 
       raise ArgumentError,

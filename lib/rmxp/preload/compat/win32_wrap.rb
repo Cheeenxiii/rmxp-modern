@@ -210,11 +210,35 @@ rescue StandardError
 	false
 end
 
+# Pre-v19 Essentials replaces Input with Win32 keyboard polling. Map the
+# engine's controller buttons to the Windows keys those games read, otherwise
+# a gamepad (or a handheld build) cannot drive them at all.
+WIN32_PAD_BUTTONS = {
+	0x25 => :LEFT, 0x26 => :UP, 0x27 => :RIGHT, 0x28 => :DOWN,
+	0x5A => :A, 0x10 => :A,       # Z, Shift
+	0x58 => :B, 0x1B => :B,       # X, Esc
+	0x43 => :C, 0x0D => :C, 0x20 => :C, # C, Enter, Space
+	0x41 => :X, 0x53 => :Y, 0x44 => :Z, # A, S, D
+	0x51 => :L, 0x57 => :R,       # Q, W
+	0x11 => :CTRL, 0x12 => :ALT,
+	0x70 => :F5, 0x71 => :F6, 0x72 => :F7, 0x73 => :F8, 0x74 => :F9
+}.freeze
+
+def win32_pad_down?(vkey)
+	constant = WIN32_PAD_BUTTONS[vkey]
+	return false unless constant
+	return false unless Input.const_defined?(constant)
+	return false unless Input.respond_to?(:__win32wrap_native_press?)
+	Input.send(:__win32wrap_native_press?, Input.const_get(constant))
+rescue StandardError
+	false
+end
+
 def common_keystate(vkey)
 	vkey_name = Scancodes::WIN32INV[vkey]
 
 	states = get_raw_keystates
-	pressed = false
+	pressed = win32_pad_down?(vkey)
 
 	if vkey == Scancodes::WIN32[:LBUTTON]
 		pressed = win32_mouse_down?(:MOUSELEFT)
@@ -236,7 +260,7 @@ def common_keystate(vkey)
 			scan = Scancodes::WIN2SDL[vkey_name]
 		end
 
-		pressed = state_pressed(states, scan)
+		pressed = pressed || state_pressed(states, scan)
 	end
 
 	return pressed ? 1 : 0

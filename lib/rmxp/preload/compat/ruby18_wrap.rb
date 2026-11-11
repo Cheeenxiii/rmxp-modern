@@ -22,7 +22,7 @@ class Hash
   # real: Ruby 1.8 printed a Hash by concatenating each key and value.
   def to_s
     return self.reduce("") do |sentence, (key, value)|
-      sentence + "#{key.to_s}#{to_s}"
+      sentence + "#{key.to_s}#{value.to_s}"
     end
   end
 end
