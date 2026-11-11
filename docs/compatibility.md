@@ -10,7 +10,7 @@ Switch builds are experimental.
 |---|---|
 | Pokémon Uranium 1.4.1 (Essentials v16.2) | Playable: title, menus, first map, battles, save and reload. |
 | Pokémon Insurgence 1.2.7.1 (Essentials v16.2) | Playable: title, menus, intro, maps, battles, save and reload; H-Mode7 maps render as normal maps. |
-| Pokémon Reborn 19.5 | Boots to its title screen and main menu. |
+| Pokémon Reborn 19.5 | Playable on Linux with the game-side shims: title, menus, wild battle, save and continue. Discord Rich Presence is disabled. |
 | Essentials kits v19.1, v20.1, v21.1 | Boot and play; the round trip is byte-identical on v21.1. |
 | Pokémon SDK games | Not supported yet. |
 
@@ -31,7 +31,8 @@ aliases, Marshal and the engine API calls our shims cover).
   lose their heightmap effect and are drawn as normal maps instead: their
   Windows DLL is absent, so only the normal renderer is used.
 - Online features (updates, GTS, trades, Discord Rich Presence) are off: the
-  Windows network APIs return nothing.
+  Windows network APIs return nothing, and Reborn's native Discord extension
+  cannot load against our Ruby.
 - Screen readers (Tolk/NVDA) are not implemented.
 - Reborn needs its game-side `Input::E/F/D` shim on stock mkxp-z.
 

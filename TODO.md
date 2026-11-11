@@ -41,5 +41,7 @@
 
 ## Known gaps
 
+- Reborn's native Discord extension (`gems/discord.so`) cannot load against
+  our Ruby; it is disabled by the game-side shim. Rebuild it if wanted.
 - `Array#sample(n)` matches CRuby for n <= 10; above that it may differ.
 - H-Mode7 maps render as normal maps (heightmap/3D effect lost, not planned).
