@@ -283,6 +283,16 @@ module Win32XInput
 		[14, 0x0008], # D-pad right
 	]
 
+	# On the Switch the engine reports the face buttons by their physical
+	# position (Nintendo's A is the right button, B the bottom one), while
+	# games reading XInput expect the Xbox letters. Match the console's own
+	# labels: Nintendo A -> XInput A, B -> B, X -> X, Y -> Y.
+	SWITCH_LABELS = (RUBY_PLATFORM.to_s.include?("elf") || ENV["RMXP_SWITCH_INPUT"] == "1")
+	BUTTONS_SWITCH = BUTTONS.map do |index, bit|
+		bit = { 0x1000 => 0x2000, 0x2000 => 0x1000, 0x4000 => 0x8000, 0x8000 => 0x4000 }.fetch(bit, bit)
+		[index, bit]
+	end
+
 	# SDL controller axis index.
 	AXIS_LEFT_X = 0
 	AXIS_LEFT_Y = 1
@@ -327,7 +337,7 @@ module Win32XInput
 		return nil if axes.length <= AXIS_TRIGGER_RIGHT
 
 		mask = 0
-		BUTTONS.each { |index, bit| mask |= bit if buttons[index] }
+		(SWITCH_LABELS ? BUTTONS_SWITCH : BUTTONS).each { |index, bit| mask |= bit if buttons[index] }
 
 		return [mask,
 			trigger_byte(axes[AXIS_TRIGGER_LEFT]),

@@ -16,6 +16,14 @@ if defined?(Graphics) && Graphics.respond_to?(:resize_window)
         @window ||= [Graphics.width, Graphics.height]
       end
 
+      def surface
+        @surface
+      end
+
+      def surface=(size)
+        @surface = size
+      end
+
       def window
         @window
       end
@@ -46,6 +54,7 @@ if defined?(Graphics) && Graphics.respond_to?(:resize_window)
         return if wanted == @window
 
         Graphics.send(:__rmxp_window_scale_resize_screen, *wanted)
+        RmxpWindowScale.surface = wanted
         restore_later if wanted[0] < @window[0] || wanted[1] < @window[1]
       end
     end
@@ -57,7 +66,12 @@ if defined?(Graphics) && Graphics.respond_to?(:resize_window)
     alias_method :__rmxp_window_scale_resize_screen, :resize_screen unless method_defined?(:__rmxp_window_scale_resize_screen)
     def resize_screen(width, height)
       RmxpWindowScale.remember_window
+      # Games call resize_screen again every frame on some screens (Uranium's
+      # language selection); resizing the window there makes it flicker.
+      return nil if RmxpWindowScale.surface == [width, height]
+
       __rmxp_window_scale_resize_screen(width, height)
+      RmxpWindowScale.surface = [width, height]
       window = RmxpWindowScale.window
       RmxpWindowScale.restore_later if width < window[0] || height < window[1]
       nil

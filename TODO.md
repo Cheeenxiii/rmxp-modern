@@ -12,16 +12,17 @@
 - Uranium's intro hangs on the console (Scene_Intro steady at 40 fps, waiting
   forever) while it passes on PC: Ruby thread scheduling under libnx is the
   main suspect; fix the port's Ruby timer threads.
-- Text input: validating the Switch software keyboard must send Enter, cancelling
-  must type nothing, A must reopen the keyboard and B send Escape, so a naming
-  screen can never trap the player.
-- Uranium's language screen flickers on the console (added resize calls?).
-  Check the repeated `Graphics.resize_screen` handling.
+- Text input: Return is now synthesized after the Switch keyboard returns a
+  string (patch 0017); still to check on hardware that cancelling types
+  nothing, A reopens the keyboard and B sends Escape.
+- Uranium's language screen flickered on the console; the repeated
+  `Graphics.resize_screen` calls are now ignored when the surface is already
+  the requested size. Confirm on hardware.
 - Third console session: kit/Reborn/Uranium/Insurgence .nro, a 10-minute
   playthrough each, and before/after measurements where the performance lever
   applies.
-- A/B and X/Y are mapped to the Switch labels in the XInput shim; confirm on
-  hardware (second session reported B validating instead of A).
+- A/B and X/Y are mapped to the Switch labels on Switch in the XInput shim;
+  confirm on hardware (second session reported B validating instead of A).
 - Games without a `.sf2` soundfont (Uranium) keep their MIDI silent on the
   Switch: decide whether to ship a fallback soundfont.
 - Screen readers (Tolk/NVDA) are not implemented; the other Win32API losses

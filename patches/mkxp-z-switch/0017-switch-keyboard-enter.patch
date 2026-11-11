@@ -1,0 +1,28 @@
+diff --git a/src/eventthread.cpp b/src/eventthread.cpp
+index ebe4746b..1d0ae2f5 100644
+--- a/src/eventthread.cpp
++++ b/src/eventthread.cpp
+@@ -314,6 +314,23 @@ void EventThread::process(RGSSThreadData &rtData)
+                     textInputBuffer += event.text.text;
+                 }
+                 lockText(false);
++#ifdef __SWITCH__
++                /* The Switch software keyboard (SDL's switch port) sends the
++                 * typed string and nothing else. The games' text-entry screens
++                 * then wait for Return, so they never accept the name. Press
++                 * Return for the player once the keyboard returns a string. */
++                {
++                    SDL_Event key = {};
++                    key.type = SDL_KEYDOWN;
++                    key.key.state = SDL_PRESSED;
++                    key.key.keysym.scancode = SDL_SCANCODE_RETURN;
++                    key.key.keysym.sym = SDLK_RETURN;
++                    SDL_PushEvent(&key);
++                    key.type = SDL_KEYUP;
++                    key.key.state = SDL_RELEASED;
++                    SDL_PushEvent(&key);
++                }
++#endif
+                 break;
+                 
+             case SDL_QUIT :
