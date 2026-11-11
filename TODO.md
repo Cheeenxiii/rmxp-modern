@@ -33,15 +33,22 @@
 
 ## Performance
 
-- Uranium/Insurgence main lever to find and quantify (text cache, bitmap
-  recreation, per-tile map access, GC): rank levers by measured gain, cost and
-  risk before implementing.
-- Kit map 66 drops to ~48 fps on console while other maps hold 58-60: profile
-  it and apply the same lever if it fits.
-- Console reference so far: kit maps 58-60 fps (map 66 ~48), Reborn map 51
-  40 fps, Uranium language screen CPU-bound (~14 fps), title/intro 40 fps.
-  The PC to Switch factor stays an order of magnitude because the console Ruby
-  has no CPU clock.
+- Uranium/Insurgence main cost is game-side, not generic: the battle scene's
+  per-frame UI work is 6.4 ms of Ruby on PC (EliteBattle_UI scene update,
+  ~446 Bitmap#blt per frame) and roughly 20-30 ms on the console; overworld
+  update is 2-3 ms. That lever requires game-specific work, so it is not
+  implemented.
+- A rendered-text cache (compat preload prototype in tmp/perf-uranium) halves
+  the text-heavy screens (language 3.9 -> 2.0 ms Ruby, pause menu 3.2 -> 1.6,
+  bag 4.2 -> 3.0) with pixel-identical output; no gain in battle/overworld.
+  Secondary lever only, not shipped.
+- GC is 0.6-0.7% of CPU: allocation reduction is not the lever.
+- Kit map 66 profiling was not finished (timebox); the harness is in
+  tmp/perf-uranium and can be pointed at the kit.
+- Console reference: kit maps 58-60 fps (map 66 ~48), Reborn map 51 40 fps,
+  Uranium language screen CPU-bound (~14 fps), title/intro 40 fps. `avg`
+  includes waiting; the console Ruby has no CPU clock (`cpu=na`), so the PC to
+  Switch factor stays an order of magnitude.
 
 ## Native compilation
 
@@ -57,5 +64,12 @@
 
 - Reborn's native Discord extension (`gems/discord.so`) cannot load against
   our Ruby; it is disabled by the game-side shim. Rebuild it if wanted.
+- The Essentials v17.2 kit does not see the virtual pad through its own Input
+  layer (it polls Win32 keyboard state; the engine pad is present but its bridge
+  is not consulted). Everything else passes; find the generic bridge.
+- The endurance tests did not produce a consolidated report: the first pass ran
+  the kit/insurgence/reborn drivers (logs in tmp/endurance, one save-file
+  FileNotFoundError, stall heuristic false positives) before the run failed.
+  Rerun them from tmp/endurance/common.
 - `Array#sample(n)` matches CRuby for n <= 10; above that it may differ.
 - H-Mode7 maps render as normal maps (heightmap/3D effect lost, not planned).
