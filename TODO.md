@@ -9,9 +9,11 @@
 
 ## Switch
 
-- Uranium's intro hangs on the console (Scene_Intro steady at 40 fps, waiting
-  forever) while it passes on PC: Ruby thread scheduling under libnx is the
-  main suspect; fix the port's Ruby timer threads.
+- Uranium's intro is a fixed ~2 minute sequence (it leaves the sky at ~115 s and
+  accepts input at ~122 s); the second-session log covered 110 s, so it was not
+  a hang. The libnx `pipe creation failed` timer warning is real but does not
+  block Ruby threads. Ask the next session to watch 150-200 s and fetch
+  errorlog.txt if it still looks stuck.
 - Text input: Return is now synthesized after the Switch keyboard returns a
   string (patch 0017); still to check on hardware that cancelling types
   nothing, A reopens the keyboard and B sends Escape.
@@ -20,7 +22,8 @@
   the requested size. Confirm on hardware.
 - Third console session: kit/Reborn/Uranium/Insurgence .nro, a 10-minute
   playthrough each, and before/after measurements where the performance lever
-  applies.
+  applies. The install marker now fingerprints preloads too, so rebuilt .nro
+  reinstall their shims (old test installs kept stale preloads).
 - A/B and X/Y are mapped to the Switch labels on Switch in the XInput shim;
   confirm on hardware (second session reported B validating instead of A).
 - Games without a `.sf2` soundfont (Uranium) keep their MIDI silent on the

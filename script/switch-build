@@ -111,7 +111,16 @@ find "$romfs/game" -maxdepth 2 \( -iname '*.exe' -o -iname '*.dll' -o -iname '*.
 rm -rf "$romfs/game/scripts" "$romfs/game/scripts.yml"
 
 printf '%s\n' "$name" > "$romfs/name.txt"
-version="$( { sha256sum "$game/Game.ini"; sha256sum "$game/Data/Scripts.rxdata" 2>/dev/null || true; } | sha256sum | cut -d' ' -f1)"
+# Fingerprint everything that changes the installed game: data, config and
+# the preload shims. The engine itself lives in the .nro, not in the copy.
+version="$(
+  {
+    sha256sum "$game/Game.ini"
+    sha256sum "$game/Data/Scripts.rxdata" 2>/dev/null || true
+    sha256sum "$game/mkxp.json" 2>/dev/null || true
+    find "$game/preload" -type f 2>/dev/null | sort | xargs -r sha256sum
+  } | sha256sum | cut -d' ' -f1
+)"
 printf '%s\n' "$version" > "$romfs/version.txt"
 
 if [ -n "$icon" ] && [ -f "$icon" ]; then
