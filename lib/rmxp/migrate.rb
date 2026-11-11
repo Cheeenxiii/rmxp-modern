@@ -18,6 +18,7 @@ module Rmxp
     COMPAT = File.expand_path("preload/compat", __dir__)
     GIF_MANIFEST = "gif_frames.txt"
     GIF_SCRIPT = "9999_rmxp_gif_frames.rb"
+    WEAKREF_SCRIPT = "9999_rmxp_weakref.rb"
     # gif.dll returns frame times in 1/100 s, and GifBitmap compares them with
     # a counter incremented by 2 per update. Keep the same unit.
     GIF_DELAY_UNITS = 100
@@ -69,6 +70,7 @@ module Rmxp
       end
 
       append_string_input_compat(scripts_dir)
+      append_weakref_compat(scripts_dir)
       append_gif_frames_compat(scripts_dir) unless convert_gifs.empty?
       midis = Rmxp::Midi.convert(@out_dir)
       File.binwrite(File.join(@out_dir, "Data/Scripts.rxdata"), Rmxp::Scripts.build(@out_dir))
@@ -477,6 +479,22 @@ module Rmxp
 
     def relative_to_out(path)
       path.delete_prefix("#{@out_dir}/").tr(File::SEPARATOR, "/")
+    end
+
+    # Installed for every game; the script only acts on the old BitmapCache
+    # WeakRef class.
+    def append_weakref_compat(scripts_dir)
+      file = WEAKREF_SCRIPT
+      File.binwrite(File.join(scripts_dir, file), File.binread(File.join(COMPAT, "weakref_id2ref.rb")))
+      path = File.join(@out_dir, Rmxp::Scripts::MANIFEST)
+      manifest = YAML.safe_load_file(path)
+      scripts = manifest.fetch("scripts")
+      main = scripts.index do |entry|
+        File.basename(entry["file"], ".rb").sub(/\A\d+_/, "") == "Main"
+      end
+      main ||= scripts.index { |entry| entry["file"].include?("Main") } || scripts.length
+      scripts.insert(main, { "id" => 9_999_997, "file" => file, "name" => "rmxp compat" })
+      File.write(path, YAML.dump(manifest))
     end
 
     def append_gif_frames_compat(scripts_dir)
