@@ -4,14 +4,18 @@
 
 - Validate the WeakRef/BitmapCache fix on hardware: Uranium's intro must
   animate and reach the title, with no `errorlog.txt`.
-- Text input through libnx swkbd: validated path (text + Enter), cancelled
-  path (nothing typed, A reopens, B sends Escape).
+- Text input now goes through libnx swkbd directly (patch 0018): validated
+  sends text + Return, cancelled sends Escape. Confirm on hardware, and check
+  the A-reopens-while-the-entry-screen-shows case (game-dependent).
 - Confirm the Switch face-button A/B/X/Y mapping and the repeated
   `Graphics.resize_screen` fix on hardware.
-- The libnx "Installing ..." screen can leave the display on the console after
-  the copy: restore the display or use an SDL progress window.
 - Games without a `.sf2` soundfont (Uranium) keep their MIDI silent.
 - Screen readers (Tolk/NVDA) are not implemented.
+
+- Ruby finalizers are delayed on Switch (no timer thread because libnx has no
+  pipe): finalizers are flushed by GC.start(full_mark:, immediate_sweep:) but
+  not by allocation pressure. Fix the port's Ruby timer/wakeup if it can be
+  done safely; the weakref/BitmapCache shim stays as the safety net.
 
 ## Performance
 
@@ -34,6 +38,10 @@
   30-45 h from the existing Android mkxp-z ports.
 
 ## Known gaps
+
+- In the Eden emulator the "Installing ..." screen stays on top after the
+  copy; on the console the install screen works and the game starts normally
+  (emulator limitation, no port fix planned).
 
 - Reborn's native Discord extension stays disabled.
 - `Array#sample(n)` may differ from CRuby above n = 10.

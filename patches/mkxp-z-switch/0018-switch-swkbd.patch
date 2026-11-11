@@ -1,0 +1,90 @@
+--- a/src/eventthread.cpp
++++ b/src/eventthread.cpp
+@@ -21,6 +21,10 @@
+ 
+ #include "eventthread.h"
+ 
++#ifdef __SWITCH__
++extern "C" int switchShowKeyboard(char *text, size_t size);
++#endif
++
+ #include <SDL_events.h>
+ #include <SDL_messagebox.h>
+ #include <SDL_timer.h>
+@@ -534,6 +538,43 @@
+                         break;
+                         
+                     case REQUEST_TEXTMODE :
++#ifdef __SWITCH__
++                        if (event.user.code)
++                        {
++                            char text[512] = {};
++                            int result = switchShowKeyboard(text, sizeof(text));
++                            SDL_Event key = {};
++                            key.type = SDL_KEYDOWN;
++                            key.key.state = SDL_PRESSED;
++                            if (result == 0)
++                            {
++                                lockText(true);
++                                textInputBuffer.clear();
++                                textInputBuffer += text;
++                                lockText(false);
++                                key.key.keysym.scancode = SDL_SCANCODE_RETURN;
++                                key.key.keysym.sym = SDLK_RETURN;
++                            }
++                            else
++                            {
++                                lockText(true);
++                                textInputBuffer.clear();
++                                lockText(false);
++                                key.key.keysym.scancode = SDL_SCANCODE_ESCAPE;
++                                key.key.keysym.sym = SDLK_ESCAPE;
++                            }
++                            SDL_PushEvent(&key);
++                            key.type = SDL_KEYUP;
++                            key.key.state = SDL_RELEASED;
++                            SDL_PushEvent(&key);
++                        }
++                        else
++                        {
++                            lockText(true);
++                            textInputBuffer.clear();
++                            lockText(false);
++                        }
++#else
+                         if (event.user.code)
+                         {
+                             {
+@@ -552,6 +593,7 @@
+                             textInputBuffer.clear();
+                             lockText(false);
+                         }
++#endif
+                         break;
+                         
+                     case REQUEST_MESSAGEBOX :
+--- a/switch/switch_main.cpp
++++ b/switch/switch_main.cpp
+@@ -241,6 +241,22 @@
+ 
+ extern "C" void userAppExit(void) { romfsExit(); }
+ 
++// Called from the event thread when a game enables Input.text_input. SDL's
++// Switch port opens the software keyboard asynchronously and only reports the
++// text, so games that wait for Return stay stuck. Show libnx's keyboard
++// directly and return the result, so the caller can inject Return (validated)
++// or Escape (cancelled).
++extern "C" int switchShowKeyboard(char *text, size_t size) {
++  SwkbdConfig kbd;
++  if (R_FAILED(swkbdCreate(&kbd, 0)))
++    return -1;
++  swkbdConfigMakePresetDefault(&kbd);
++  swkbdConfigSetGuideText(&kbd, "Enter text");
++  Result rc = swkbdShow(&kbd, text, size);
++  swkbdClose(&kbd);
++  return R_SUCCEEDED(rc) ? 0 : 1;
++}
++
+ // libnx only weakly references userAppInit, so the linker drops this whole
+ // translation unit from libmkxp-z.a; main() calls this to keep it, and with it
+ // the RomFS mount, in the binary.
