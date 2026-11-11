@@ -45,7 +45,8 @@ with tagged keys:
 | `__b64__`, `__enc__` | non-ASCII string that isn't valid UTF-8, in Base64 |
 | `__sym__` | Symbol |
 | `__float__` | `NaN`, `Infinity` or `-Infinity` |
-| `__blob__` | Marshal payload of a class with its own `_dump` (Table, Color, ...), in Base64 |
+| `__table__` | RPG::Table dimensions and int16 values, as readable arrays |
+| `__blob__` | Marshal payload of a class with its own `_dump` (Color, Tone, Rect, Font), in Base64 |
 | `__time__` | Time, as its Marshal dump in Base64 |
 | `__id__`, `__ref__` | an object that appears more than once gets an `__id__`; other occurrences are `__ref__` |
 

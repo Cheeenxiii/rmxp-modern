@@ -12,7 +12,8 @@ module Rmxp
   # - object classes and every instance variable (in declaration order),
   # - Ruby string encodings,
   # - shared references and cycles,
-  # - the opaque payload of RGSS types (Table, Color, Tone, Rect, Font).
+  # - Table values as readable integers (dimensions and int16 data),
+# - the opaque payload of the other RGSS types (Color, Tone, Rect, Font).
   #
   # The point is the round trip: load(data) then dump(data) must give the
   # same Marshal bytes, not merely an equal-looking object.
@@ -317,6 +318,26 @@ module Rmxp
         add_ivars(node, value)
       end
 
+      # RPG::Table payload: uint32 dimension count, that many uint32 sizes,
+      # uint32 value count, then int16 values. Decoded so map data is text;
+      # falls back to the opaque blob if the layout is not the expected one.
+      def encode_table(value)
+        payload = value.payload
+        return nil unless payload.bytesize >= 8
+
+        dims_count = payload[0, 4].unpack1("V")
+        header = 4 + 4 * dims_count
+        return nil unless dims_count.positive? && payload.bytesize >= header + 4
+
+        dimensions = payload[4, 4 * dims_count].unpack("V*")
+        count = payload[header, 4].unpack1("V")
+        return nil unless payload.bytesize == header + 4 + count * 2
+
+        values = payload[header + 4, count * 2].unpack("s<*")
+        { "__class__" => value.class.name,
+          "__table__" => { "dimensions" => dimensions, "values" => values } }
+      end
+
       def add_ivars(node, value)
         ivars = value.instance_variables
         return node if ivars.empty?
@@ -328,6 +349,9 @@ module Rmxp
       def encode_object(value)
         if value.is_a?(RmxpBlob)
           raise "blob without payload: #{value.class.name}" if value.payload.nil?
+
+          table = encode_table(value) if value.class.name == "Table"
+          return table if table
 
           return { "__class__" => value.class.name, "__blob__" => Base64.strict_encode64(value.payload) }
         end
@@ -414,6 +438,14 @@ module Rmxp
 
       def decode_object(node)
         class_name = node["__class__"]
+        if (table = node["__table__"])
+          klass = blob_class(class_name)
+          dimensions = table.fetch("dimensions")
+          values = table.fetch("values")
+          payload = [dimensions.length, *dimensions, values.length].pack("V*") + values.pack("s<*")
+          value = klass._load(payload)
+          return register(node, value)
+        end
         if node.key?("__blob__")
           klass = blob_class(class_name)
           value = klass._load(Base64.strict_decode64(node["__blob__"]))

@@ -4,9 +4,9 @@
 # RGSS value types that Marshal stores in their own binary format.
 #
 # RMXP data files contain Table, Color, Tone and Rect values. They are not
-# plain Ruby objects: Marshal calls their `_dump`/`_load`. We do not need to
-# interpret them for a round trip, so the marshalled payload is kept verbatim.
-# That makes load/dump byte-identical and keeps the text form compact.
+# plain Ruby objects: Marshal calls their `_dump`/`_load`. The codec turns
+# Table payloads into readable integers; Color, Tone, Rect and Font are kept
+# verbatim. Either way the round trip is byte-identical.
 class RmxpBlob
   attr_reader :payload
 
