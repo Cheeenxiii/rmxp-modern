@@ -9,13 +9,19 @@
 
 ## Switch
 
-- Second console session: A/B, naming, battles and saves on hardware, with the
-  fps per scene (language screen is CPU-bound, title should be 40 fps).
-- The libnx "Installing ..." screen sometimes leaves the display on the console
-  after the copy while the engine runs (seen under Eden): confirm on hardware
-  and restore the display or use an SDL progress window.
-- Confirm the PC to Switch factor with the session's fps; the console Ruby has
-  no CPU clock (`cpu=na`), so it stays an order of magnitude.
+- Uranium's intro hangs on the console (Scene_Intro steady at 40 fps, waiting
+  forever) while it passes on PC: Ruby thread scheduling under libnx is the
+  main suspect; fix the port's Ruby timer threads.
+- Text input: validating the Switch software keyboard must send Enter, cancelling
+  must type nothing, A must reopen the keyboard and B send Escape, so a naming
+  screen can never trap the player.
+- Uranium's language screen flickers on the console (added resize calls?).
+  Check the repeated `Graphics.resize_screen` handling.
+- Third console session: kit/Reborn/Uranium/Insurgence .nro, a 10-minute
+  playthrough each, and before/after measurements where the performance lever
+  applies.
+- A/B and X/Y are mapped to the Switch labels in the XInput shim; confirm on
+  hardware (second session reported B validating instead of A).
 - Games without a `.sf2` soundfont (Uranium) keep their MIDI silent on the
   Switch: decide whether to ship a fallback soundfont.
 - Screen readers (Tolk/NVDA) are not implemented; the other Win32API losses
@@ -23,11 +29,15 @@
 
 ## Performance
 
-- Generic text/`AnimatedBitmap` cache (milestone 7): Uranium's language screen
-  spends ~4-5 ms on PC and ~70 ms on the console per frame (4 text shadow
-  passes, 7 fresh AnimatedBitmaps). Validate on kit and Reborn before/after.
-- Candidate: avoid `map.data` per tile. Engine-side "bitmap changed" flag for
-  the anti-redraw idea (prototype rejected for now, in tmp/antiredraw).
+- Uranium/Insurgence main lever to find and quantify (text cache, bitmap
+  recreation, per-tile map access, GC): rank levers by measured gain, cost and
+  risk before implementing.
+- Kit map 66 drops to ~48 fps on console while other maps hold 58-60: profile
+  it and apply the same lever if it fits.
+- Console reference so far: kit maps 58-60 fps (map 66 ~48), Reborn map 51
+  40 fps, Uranium language screen CPU-bound (~14 fps), title/intro 40 fps.
+  The PC to Switch factor stays an order of magnitude because the console Ruby
+  has no CPU clock.
 
 ## Native compilation
 
